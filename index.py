@@ -14,13 +14,9 @@ if str(ROOT_DIR) not in sys.path:
 # Import main request handler
 from server import IgyrRequestHandler
 
-class handler(IgyrRequestHandler):
+class handler(IgyrRequestHandler, BaseHTTPRequestHandler):
     """
     Top-level handler class recognized by Vercel's Python runtime.
     Inherits all API endpoints and CORS handling from IgyrRequestHandler.
     """
     pass
-
-# Aliases for Vercel runtime detection
-app = handler
-application = handler
