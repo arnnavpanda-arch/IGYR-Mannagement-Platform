@@ -35,8 +35,25 @@ def mask_email(email: str) -> str:
     return f"{masked_name}@{domain}"
 
 class IgyrRequestHandler(SimpleHTTPRequestHandler):
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, directory=str(BASE_DIR), **kwargs)
+    def __init__(self, *args, directory=None, **kwargs):
+        if directory is None:
+            directory = str(BASE_DIR)
+        super().__init__(*args, directory=directory, **kwargs)
+
+    def _normalize_path(self):
+        parsed = urlparse(self.path)
+        path = parsed.path.rstrip("/")
+        if not path.startswith("/api") and (
+            path.startswith("/auth") or 
+            path.startswith("/db") or 
+            path.startswith("/health") or 
+            path.startswith("/institutes") or 
+            path.startswith("/students") or 
+            path.startswith("/announcements") or 
+            path.startswith("/users")
+        ):
+            path = "/api" + path
+        return path, parsed
 
     def _send_json(self, data, status=HTTPStatus.OK):
         body = json.dumps(data).encode("utf-8")
@@ -67,8 +84,7 @@ class IgyrRequestHandler(SimpleHTTPRequestHandler):
         self.end_headers()
 
     def do_GET(self):
-        parsed = urlparse(self.path)
-        path = parsed.path.rstrip("/")
+        path, parsed = self._normalize_path()
         query_params = parse_qs(parsed.query)
 
         # Health & Turso Status
@@ -102,8 +118,13 @@ class IgyrRequestHandler(SimpleHTTPRequestHandler):
         super().do_GET()
 
     def do_POST(self):
-        parsed = urlparse(self.path)
-        path = parsed.path.rstrip("/")
+        path, parsed = self._normalize_path()
+        try:
+            self._handle_post(path, parsed)
+        except Exception as e:
+            self._send_json({"ok": False, "error": f"Server error: {str(e)}"}, status=HTTPStatus.INTERNAL_SERVER_ERROR)
+
+    def _handle_post(self, path, parsed):
         body = self._read_json_body()
 
         # Auth: Login
@@ -353,8 +374,7 @@ class IgyrRequestHandler(SimpleHTTPRequestHandler):
         self._send_json({"ok": False, "error": f"Endpoint {path} not found."}, status=HTTPStatus.NOT_FOUND)
 
     def do_PUT(self):
-        parsed = urlparse(self.path)
-        path = parsed.path.rstrip("/")
+        path, parsed = self._normalize_path()
         body = self._read_json_body()
 
         # Update Student Details
@@ -403,8 +423,7 @@ class IgyrRequestHandler(SimpleHTTPRequestHandler):
         self._send_json({"ok": False, "error": "Method not allowed"}, status=HTTPStatus.METHOD_NOT_ALLOWED)
 
     def do_DELETE(self):
-        parsed = urlparse(self.path)
-        path = parsed.path.rstrip("/")
+        path, parsed = self._normalize_path()
         params = parse_qs(parsed.query)
 
         # Delete Student

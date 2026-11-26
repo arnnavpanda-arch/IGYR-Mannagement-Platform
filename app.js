@@ -2,10 +2,97 @@
 const $=s=>document.querySelector(s);
 let db=JSON.parse(localStorage.getItem('igyr')||'null')||{logo:'',users:[{id:'igyr',pw:'cutiee',role:'admin',name:'Super Admin'}],insts:[],classes:[],subjects:[],students:[],att:[],pays:[],tt:[],mats:[],ann:[],exams:[],res:[]};
 let U=null, tab=null;
+let lastDbSnapshot=JSON.stringify(db);
+let pendingSyncRender=false;
+let isFetchingTurso=false;
+
+/* Cross-Tab & Multi-Window Real-time Broadcast Channel */
+let realtimeChannel=null;
+try{
+  if(typeof BroadcastChannel!=='undefined'){
+    realtimeChannel=new BroadcastChannel('igyr_realtime_sync');
+    realtimeChannel.onmessage=(ev)=>{
+      if(ev&&ev.data&&ev.data.type==='sync'){
+        syncFromLocalStorage(false);
+      }
+    };
+  }
+}catch(e){}
+
+window.addEventListener('storage',(e)=>{
+  if(e.key==='igyr'&&e.newValue){
+    syncFromLocalStorage(false);
+  }
+});
+
+function isUserEditingForm(){
+  const active=document.activeElement;
+  if(!active) return false;
+  const tag=active.tagName;
+  if(tag==='INPUT'||tag==='TEXTAREA'||tag==='SELECT') return true;
+  if(active.isContentEditable) return true;
+  if(document.querySelector('#customModalOverlay')) return true;
+  return false;
+}
+
+function applyDashboardSync(force=false){
+  setLogo();
+  if(typeof U!=='undefined'&&U){
+    if(!U.inst){
+      U.inst=getUserInstId(U);
+      if(U.inst) try{sessionStorage.setItem('u',JSON.stringify(U));}catch(e){}
+    }
+    const instId=I();
+    const ins=(instId&&db&&db.insts)?db.insts.find(i=>i.id===instId||(i.id&&i.id.toLowerCase()===String(instId).toLowerCase())):null;
+    if(ins&&ins.name&&$('#neonHeaderTitle')&&U.role!=='admin'){
+      $('#neonHeaderTitle').textContent=ins.name.toUpperCase();
+    }
+  }
+  const welcomeEl=$('#fullScreenWelcome');
+  if(welcomeEl&&(welcomeEl.classList.contains('active')||welcomeEl.style.display==='flex')){
+    showFullScreenWelcome();
+  }
+  if(!force&&isUserEditingForm()){
+    pendingSyncRender=true;
+    return;
+  }
+  pendingSyncRender=false;
+  if(typeof tab!=='undefined'&&tab&&typeof go==='function'&&typeof U!=='undefined'&&U&&typeof T!=='undefined'&&T[U.role]){
+    go(tab);
+  }
+}
+
+document.addEventListener('focusout',()=>{
+  setTimeout(()=>{
+    if(pendingSyncRender&&!isUserEditingForm()){
+      pendingSyncRender=false;
+      applyDashboardSync(false);
+    }
+  },250);
+});
+
+function syncFromLocalStorage(force=false){
+  try{
+    const stored=localStorage.getItem('igyr');
+    if(stored&&stored!==lastDbSnapshot){
+      const parsed=JSON.parse(stored);
+      if(parsed&&parsed.users&&parsed.users.length>0){
+        db=parsed;
+        lastDbSnapshot=stored;
+        applyDashboardSync(force);
+      }
+    }
+  }catch(e){}
+}
 
 let syncTimer=null;
 const save=(immediateCloud=false)=>{
-  localStorage.setItem('igyr',JSON.stringify(db));
+  const str=JSON.stringify(db);
+  localStorage.setItem('igyr',str);
+  lastDbSnapshot=str;
+  if(realtimeChannel){
+    try{realtimeChannel.postMessage({type:'sync',time:Date.now()});}catch(e){}
+  }
   if(immediateCloud){
     pushToTurso();
   } else {
@@ -29,29 +116,24 @@ async function pushToTurso(){
   }
 }
 
-async function fetchFromTurso(){
+async function fetchFromTurso(force=false){
+  if(isFetchingTurso) return;
+  isFetchingTurso=true;
   try{
     const res=await fetch('/api/db');
     if(res.ok){
       const json=await res.json();
-      if(json.ok && json.data){
+      if(json.ok&&json.data){
         const cloudDb=json.data;
-        if(cloudDb.users && cloudDb.users.length>0){
-          db=cloudDb;
-          localStorage.setItem('igyr',JSON.stringify(db));
-          setLogo();
-          const welcomeEl = $('#fullScreenWelcome');
-          if(welcomeEl && (welcomeEl.classList.contains('active') || welcomeEl.style.display==='flex')){
-            showFullScreenWelcome();
-          }
-          if(typeof tab!=='undefined' && tab && typeof go==='function' && typeof U!=='undefined' && U && typeof T!=='undefined' && T[U.role]){
-            go(tab);
-          }
-          if(typeof U!=='undefined' && U && db.insts && U.role !== 'admin'){
-            const instId = I();
-            const ins = (instId && db.insts) ? db.insts.find(i=>i.id===instId || (i.id&&i.id.toLowerCase()===String(instId).toLowerCase())) : null;
-            if(ins && ins.name && $('#neonHeaderTitle')) {
-              $('#neonHeaderTitle').textContent = ins.name.toUpperCase();
+        if(cloudDb.users&&cloudDb.users.length>0){
+          const cloudStr=JSON.stringify(cloudDb);
+          if(cloudStr!==lastDbSnapshot||force){
+            db=cloudDb;
+            localStorage.setItem('igyr',cloudStr);
+            lastDbSnapshot=cloudStr;
+            applyDashboardSync(force);
+            if(realtimeChannel){
+              try{realtimeChannel.postMessage({type:'sync',time:Date.now()});}catch(e){}
             }
           }
         }
@@ -59,10 +141,19 @@ async function fetchFromTurso(){
     }
   }catch(err){
     console.warn('[Turso Cloud DB] Offline or cached mode:', err.message);
+  }finally{
+    isFetchingTurso=false;
   }
 }
 
-fetchFromTurso();
+// Initial fetch on page load
+fetchFromTurso(false);
+
+// Background Real-Time Polling every 3.5 seconds without page refresh
+setInterval(()=>fetchFromTurso(false), 3500);
+
+// Sync immediately when tab is refocused
+window.addEventListener('focus',()=>fetchFromTurso(false));
 
 const rnd=n=>Array.from({length:n},()=>String.fromCharCode(97+Math.floor(Math.random()*26))).join('');
 const today=()=>new Date().toISOString().slice(0,10);
@@ -466,7 +557,15 @@ function renderFpStep(){
           headers: {'Content-Type': 'application/json'},
           body: JSON.stringify({email: emailOrId})
         });
-        const data = await res.json();
+        const resText = await res.text();
+        let data = {};
+        try {
+          data = JSON.parse(resText);
+        } catch(pe) {
+          sendBtn.disabled = false;
+          sendBtn.innerHTML = 'Send Verification OTP 📩';
+          return showFpAlert(resText || 'Server error occurred. Please try again.');
+        }
         if(!res.ok || !data.ok){
           sendBtn.disabled = false;
           sendBtn.innerHTML = 'Send Verification OTP 📩';
@@ -522,7 +621,14 @@ function renderFpStep(){
           headers: {'Content-Type': 'application/json'},
           body: JSON.stringify({email: fpState.email})
         });
-        const data = await res.json();
+        const resText = await res.text();
+        let data = {};
+        try {
+          data = JSON.parse(resText);
+        } catch(pe) {
+          resendLink.textContent = "Didn't receive code? Resend OTP";
+          return showFpAlert(resText || 'Failed to resend code.');
+        }
         if(!res.ok || !data.ok){
           resendLink.textContent = "Didn't receive code? Resend OTP";
           return showFpAlert(data.error || 'Failed to resend code.');
@@ -552,7 +658,15 @@ function renderFpStep(){
           headers: {'Content-Type': 'application/json'},
           body: JSON.stringify({email: fpState.email, otp: code})
         });
-        const data = await res.json();
+        const resText = await res.text();
+        let data = {};
+        try {
+          data = JSON.parse(resText);
+        } catch(pe) {
+          verifyBtn.disabled = false;
+          verifyBtn.innerHTML = 'Verify OTP Code →';
+          return showFpAlert(resText || 'Verification error.');
+        }
         if(!res.ok || !data.ok){
           verifyBtn.disabled = false;
           verifyBtn.innerHTML = 'Verify OTP Code →';
@@ -609,7 +723,15 @@ function renderFpStep(){
             new_pw: pw1
           })
         });
-        const data = await res.json();
+        const resText = await res.text();
+        let data = {};
+        try {
+          data = JSON.parse(resText);
+        } catch(pe) {
+          savePwBtn.disabled = false;
+          savePwBtn.innerHTML = 'Save & Reset Password ✨';
+          return showFpAlert(resText || 'Failed to update password.');
+        }
         if(!res.ok || !data.ok){
           savePwBtn.disabled = false;
           savePwBtn.innerHTML = 'Save & Reset Password ✨';
@@ -622,7 +744,7 @@ function renderFpStep(){
           u.pw = pw1;
           save(false);
         }
-        fetchFromTurso(); // Fetch latest state from cloud
+        fetchFromTurso(true); // Fetch latest state from cloud with force
 
         fpState.step = 4;
         renderFpStep();
@@ -670,28 +792,24 @@ window.openForgotPasswordModal = openForgotPasswordModal;
 function getUserInstId(user){
   if(!user) return '';
   if(user.role === 'admin') return '';
-  if(user.role === 'institute') return user.inst || user.id || '';
-  if(user.inst) return user.inst;
-  // If student
-  if(user.role === 'student' && db && db.students){
-    const s = db.students.find(x => x.uid === user.id || (x.uid && x.uid.toLowerCase() === String(user.id).toLowerCase()));
-    if(s && s.inst) return s.inst;
-  }
-  // If teacher
-  if(user.role === 'teacher' && db){
-    if(db.users){
-      const tu = db.users.find(x => x.id === user.id || (x.id && x.id.toLowerCase() === String(user.id).toLowerCase()));
-      if(tu && tu.inst) return tu.inst;
-    }
-    if(db.subjects){
-      const sub = db.subjects.find(x => x.teacher === user.id);
-      if(sub && sub.inst) return sub.inst;
-    }
-  }
-  // General fallback lookup in students
+  if(user.inst && String(user.inst).trim()) return String(user.inst).trim();
+  if(user.role === 'institute') return String(user.inst || user.id || '').trim();
+
+  const uid = String(user.id || '').toLowerCase().trim();
+  // 1. Check students
   if(db && db.students){
-    const s = db.students.find(x => x.uid === user.id || (x.uid && x.uid.toLowerCase() === String(user.id).toLowerCase()));
-    if(s && s.inst) return s.inst;
+    const s = db.students.find(x => x.uid && String(x.uid).toLowerCase().trim() === uid);
+    if(s && s.inst) return String(s.inst).trim();
+  }
+  // 2. Check users
+  if(db && db.users){
+    const tu = db.users.find(x => x.id && String(x.id).toLowerCase().trim() === uid);
+    if(tu && tu.inst) return String(tu.inst).trim();
+  }
+  // 3. Check subjects
+  if(db && db.subjects){
+    const sub = db.subjects.find(x => x.teacher && String(x.teacher).toLowerCase().trim() === uid);
+    if(sub && sub.inst) return String(sub.inst).trim();
   }
   return '';
 }
@@ -750,8 +868,15 @@ async function login(){
       headers:{'Content-Type':'application/json'},
       body:JSON.stringify({uid:rawId,pw:enteredPw})
     });
-    const data=await res.json();
+    const resText=await res.text();
+    let data={};
+    try{ data=JSON.parse(resText); }catch(e){ data={ ok:false, error:resText }; }
     if(res.ok && data.ok && data.user){
+      if($('#err')) $('#err').textContent='Loading all dashboard data... ⏳';
+      // CRITICAL FOR MOBILE: Download all data from cloud before navigating so mobile has everything!
+      try {
+        await fetchFromTurso(true);
+      } catch(e) {}
       if(!data.user.inst) data.user.inst = getUserInstId(data.user);
       sessionStorage.setItem('u',JSON.stringify(data.user));
       sessionStorage.setItem('showWelcome','1');
@@ -789,18 +914,51 @@ function readFile(inp,cb){const f=inp.files[0];if(!f)return cb('','');const r=ne
 function readText(inp,cb){const f=inp.files[0];if(!f)return;const r=new FileReader();r.onload=()=>cb(r.result);r.readAsText(f)}
 
 /* ---------- helpers ---------- */
-const I=()=>getUserInstId(U);
-const mine=k=>((db&&db[k])?db[k]:[]).filter(x=>x.inst===I());
-const sOf=uid=>((db&&db.students)?db.students:[]).find(s=>s.uid===uid);
+const I=()=>{
+  if(!U) return '';
+  let inst = getUserInstId(U);
+  if(!inst && U.inst) inst = String(U.inst).trim();
+  if(!U.inst && inst){
+    U.inst = inst;
+    try { sessionStorage.setItem('u', JSON.stringify(U)); } catch(e){}
+  }
+  return inst;
+};
+
+const mine=k=>{
+  const currentInst = String(I() || '').toLowerCase().trim();
+  const list = (db && db[k]) ? db[k] : [];
+  if(!currentInst) return list;
+  return list.filter(x => {
+    const itemInst = String(x.inst || '').toLowerCase().trim();
+    return itemInst === currentInst;
+  });
+};
+
+const sOf=uid=>{
+  if(!db || !db.students) return null;
+  const target = String(uid || '').toLowerCase().trim();
+  return db.students.find(s => s.uid && String(s.uid).toLowerCase().trim() === target) || null;
+};
+
 function months(join){if(!join)return 1;const a=new Date(join),b=new Date();return Math.max(1,(b.getFullYear()-a.getFullYear())*12+b.getMonth()-a.getMonth()+1)}
+
 function feeInfo(s){
   if(!s) return {total:0, paid:0, due:0, m:0};
   let total=0;
-  const subs=((db&&db.subjects)?db.subjects:[]).filter(x=>x.inst===s.inst&&x.cls===s.cls);
+  const sInst = String(s.inst || '').toLowerCase().trim();
+  const sCls = String(s.cls || '').toLowerCase().trim();
+  const subs = ((db&&db.subjects)?db.subjects:[]).filter(x => 
+    String(x.inst||'').toLowerCase().trim() === sInst && 
+    String(x.cls||'').toLowerCase().trim() === sCls
+  );
   if(s.feeType==='one') total=+s.fee || 0;
   else if(s.feeType==='subject') total=months(s.join||today())*subs.reduce((a,x)=>a+ (+x.fee||0),0);
   else total=months(s.join||today())*(+s.fee || 0);
-  const paid=((db&&db.pays)?db.pays:[]).filter(p=>p.uid===s.uid).reduce((a,p)=>a+ (+p.amt||0),0);
+  const sUid = String(s.uid || '').toLowerCase().trim();
+  const paid = ((db&&db.pays)?db.pays:[]).filter(p => 
+    String(p.uid||'').toLowerCase().trim() === sUid
+  ).reduce((a,p)=>a+ (+p.amt||0),0);
   return {total, paid, due:Math.max(0, total-paid), m:months(s.join||today())};
 }
 
@@ -1367,40 +1525,57 @@ function enterDashboard(){
   setLogo();
 }
 
-if($('#view')){
+async function initDashboard(){
+  if(!$('#view')) return;
   U=me();
-  if(!U) location.href='index.html';
-  else{
-    const app=$('#dashboardApp');
-    if(app) app.style.display='block';
-    const ins=db.insts.find(i=>i.id===I());
-    const roleLabels={admin:'Super Admin',institute:'Institute Admin',teacher:'Teacher',student:'Student'};
-    const portalLabels={admin:'System Admin',institute:(ins?ins.name:'Institute')+' Portal',teacher:'Faculty Portal',student:'Student Portal'};
-    if($('#ttl')) $('#ttl').textContent='IGYR Smart Platform';
-    if($('#subttl')) $('#subttl').textContent=portalLabels[U.role]||'Portal';
-    if($('#userRolePill')) $('#userRolePill').textContent=roleLabels[U.role]||U.role;
-    if($('#userName')) $('#userName').textContent=U.name||U.id;
-    if($('#sidebarTitle')) $('#sidebarTitle').textContent=(roleLabels[U.role]||'MENU').toUpperCase()+' MENU';
-    
-    let headerInstName='IGYR PLATFORM';
-    if(U){
-      if(U.role === 'admin'){
-        headerInstName = 'IGYR PLATFORM';
-      } else {
-        const instId = I();
-        const insObj = (instId && db && db.insts) ? db.insts.find(i => i.id === instId || (i.id && i.id.toLowerCase() === String(instId).toLowerCase())) : null;
-        if(insObj && insObj.name) headerInstName = insObj.name;
-        else if(U.role === 'institute') headerInstName = U.name || U.id || 'INSTITUTE';
-        else headerInstName = 'INSTITUTE PORTAL';
-      }
-    }
-    if($('#neonHeaderTitle')){
-      $('#neonHeaderTitle').textContent=headerInstName.toUpperCase();
-    }
+  if(!U){ location.href='index.html'; return; }
 
-    checkWelcomeScreen();
-    go(Object.keys(T[U.role])[0]);
+  // CRITICAL FOR MOBILE: If local storage is fresh/empty on mobile, fetch complete cloud data first!
+  if(!db || !db.insts || db.insts.length === 0 || !db.users || db.users.length <= 1){
+    try{
+      await fetchFromTurso(true);
+    }catch(e){}
   }
+
+  // Ensure institute is set on U
+  if(!U.inst){
+    U.inst = getUserInstId(U);
+    if(U.inst) try{ sessionStorage.setItem('u', JSON.stringify(U)); }catch(e){}
+  }
+
+  const app=$('#dashboardApp');
+  if(app) app.style.display='block';
+  const instId=I();
+  const ins=(instId && db && db.insts) ? db.insts.find(i=>i.id===instId || (i.id&&i.id.toLowerCase()===String(instId).toLowerCase())) : null;
+  const roleLabels={admin:'Super Admin',institute:'Institute Admin',teacher:'Teacher',student:'Student'};
+  const portalLabels={admin:'System Admin',institute:(ins?ins.name:'Institute')+' Portal',teacher:'Faculty Portal',student:'Student Portal'};
+  if($('#ttl')) $('#ttl').textContent='IGYR Smart Platform';
+  if($('#subttl')) $('#subttl').textContent=portalLabels[U.role]||'Portal';
+  if($('#userRolePill')) $('#userRolePill').textContent=roleLabels[U.role]||U.role;
+  if($('#userName')) $('#userName').textContent=U.name||U.id;
+  if($('#sidebarTitle')) $('#sidebarTitle').textContent=(roleLabels[U.role]||'MENU').toUpperCase()+' MENU';
+  
+  let headerInstName='IGYR PLATFORM';
+  if(U){
+    if(U.role === 'admin'){
+      headerInstName = 'IGYR PLATFORM';
+    } else {
+      if(ins && ins.name) headerInstName = ins.name;
+      else if(U.role === 'institute') headerInstName = U.name || U.id || 'INSTITUTE';
+      else headerInstName = 'INSTITUTE PORTAL';
+    }
+  }
+  if($('#neonHeaderTitle')){
+    $('#neonHeaderTitle').textContent=headerInstName.toUpperCase();
+  }
+
+  setLogo();
+  checkWelcomeScreen();
+  go(Object.keys(T[U.role])[0]);
+}
+
+if($('#view')){
+  initDashboard();
 }
 
 /* ---------- Password Reset Handlers ---------- */
