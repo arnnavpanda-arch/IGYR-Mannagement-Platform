@@ -261,39 +261,68 @@ def init_db():
     execute_batch(statements)
 
 def get_full_db(force_refresh: bool = False) -> Dict[str, Any]:
-    """Retrieve full database in the exact structure expected by the frontend."""
+    """Retrieve full database in a SINGLE fast round-trip pipeline to Turso."""
+    sql_list = [
+        "SELECT key, value FROM system_config;",
+        "SELECT id, pw, role, name, inst, email FROM users;",
+        "SELECT id, name, loc, det, email, logo FROM institutes;",
+        "SELECT inst, name FROM classes;",
+        "SELECT inst, name, cls, teacher, fee FROM subjects;",
+        "SELECT uid, inst, name, cls, feeType, fee, joinDate, email, phone, addr, photo, done, last_pw_reset FROM students;",
+        "SELECT inst, uid, cls, date, p FROM attendance;",
+        "SELECT id, inst, uid, amt, date FROM payments;",
+        "SELECT inst, cls, day, time, sub FROM timetables;",
+        "SELECT inst, cls, title, name, data FROM materials;",
+        "SELECT id, inst, text, date FROM announcements ORDER BY id ASC;",
+        "SELECT id, inst, cls, title, qs, open FROM exams;",
+        "SELECT inst, exam, uid, score, total FROM results;"
+    ]
+    requests = [{"type": "execute", "stmt": {"sql": s}} for s in sql_list]
+    requests.append({"type": "close"})
+
+    resp = execute_pipeline(requests)
+    results = resp.get("results", [])
+
+    def _extract_rows(idx: int) -> List[Dict[str, Any]]:
+        if idx < len(results) and results[idx].get("type") == "ok":
+            exec_res = results[idx].get("response", {}).get("result", {})
+            cols = [c["name"] for c in exec_res.get("cols", [])]
+            raw_rows = exec_res.get("rows", [])
+            return [_parse_row(cols, r) for r in raw_rows]
+        return []
+
     # 1. System Config (Logo)
-    config_rows = query("SELECT key, value FROM system_config;")
+    config_rows = _extract_rows(0)
     config_dict = {r["key"]: r["value"] for r in config_rows}
     logo = config_dict.get("logo", "")
 
     # 2. Users
-    users_rows = query("SELECT id, pw, role, name, inst, email FROM users;")
+    users_rows = _extract_rows(1)
     users = [
         {"id": u["id"], "pw": u["pw"], "role": u["role"], "name": u["name"] or u["id"], "inst": u["inst"], "email": u.get("email") or ""}
         for u in users_rows
     ]
 
     # 3. Institutes
-    insts_rows = query("SELECT id, name, loc, det, email, logo FROM institutes;")
+    insts_rows = _extract_rows(2)
     insts = [
         {"id": i["id"], "name": i["name"], "loc": i["loc"] or "", "det": i["det"] or "", "email": i.get("email") or "", "logo": i.get("logo") or ""}
         for i in insts_rows
     ]
 
     # 4. Classes
-    classes_rows = query("SELECT inst, name FROM classes;")
+    classes_rows = _extract_rows(3)
     classes = [{"inst": c["inst"], "name": c["name"]} for c in classes_rows]
 
     # 5. Subjects
-    subs_rows = query("SELECT inst, name, cls, teacher, fee FROM subjects;")
+    subs_rows = _extract_rows(4)
     subjects = [
         {"inst": s["inst"], "name": s["name"], "cls": s["cls"] or "", "teacher": s["teacher"] or "", "fee": s["fee"] or 0}
         for s in subs_rows
     ]
 
     # 6. Students
-    stus_rows = query("SELECT uid, inst, name, cls, feeType, fee, joinDate, email, phone, addr, photo, done, last_pw_reset FROM students;")
+    stus_rows = _extract_rows(5)
     students = [
         {
             "uid": st["uid"],
@@ -314,42 +343,42 @@ def get_full_db(force_refresh: bool = False) -> Dict[str, Any]:
     ]
 
     # 7. Attendance
-    att_rows = query("SELECT inst, uid, cls, date, p FROM attendance;")
+    att_rows = _extract_rows(6)
     att = [
         {"inst": a["inst"], "uid": a["uid"], "cls": a["cls"] or "", "date": a["date"], "p": bool(a["p"])}
         for a in att_rows
     ]
 
     # 8. Payments
-    pays_rows = query("SELECT id, inst, uid, amt, date FROM payments;")
+    pays_rows = _extract_rows(7)
     pays = [
         {"id": p["id"], "inst": p["inst"], "uid": p["uid"], "amt": p["amt"], "date": p["date"]}
         for p in pays_rows
     ]
 
     # 9. Timetables
-    tt_rows = query("SELECT inst, cls, day, time, sub FROM timetables;")
+    tt_rows = _extract_rows(8)
     tt = [
         {"inst": t["inst"], "cls": t["cls"], "day": t["day"], "time": t["time"], "sub": t["sub"]}
         for t in tt_rows
     ]
 
     # 10. Materials
-    mats_rows = query("SELECT inst, cls, title, name, data FROM materials;")
+    mats_rows = _extract_rows(9)
     mats = [
         {"inst": m["inst"], "cls": m["cls"], "title": m["title"], "name": m["name"] or "", "data": m["data"] or ""}
         for m in mats_rows
     ]
 
     # 11. Announcements
-    ann_rows = query("SELECT id, inst, text, date FROM announcements ORDER BY id ASC;")
+    ann_rows = _extract_rows(10)
     ann = [
         {"id": an["id"], "inst": an["inst"], "text": an["text"], "date": an["date"]}
         for an in ann_rows
     ]
 
     # 12. Exams
-    exams_rows = query("SELECT id, inst, cls, title, qs, open FROM exams;")
+    exams_rows = _extract_rows(11)
     exams = []
     for e in exams_rows:
         try:
@@ -366,13 +395,13 @@ def get_full_db(force_refresh: bool = False) -> Dict[str, Any]:
         })
 
     # 13. Results
-    res_rows = query("SELECT inst, exam, uid, score, total FROM results;")
+    res_rows = _extract_rows(12)
     res = [
         {"inst": r["inst"], "exam": r["exam"], "uid": r["uid"], "score": r["score"], "total": r["total"]}
         for r in res_rows
     ]
 
-    full_db = {
+    return {
         "logo": logo,
         "users": users,
         "insts": insts,
@@ -387,9 +416,6 @@ def get_full_db(force_refresh: bool = False) -> Dict[str, Any]:
         "exams": exams,
         "res": res
     }
-    _DB_CACHE = full_db
-    _DB_CACHE_TIME = time.time()
-    return full_db
 
 def save_full_db(data: Dict[str, Any]) -> None:
     """Synchronize complete front-end state into Turso safely."""
@@ -432,6 +458,22 @@ def save_full_db(data: Dict[str, Any]) -> None:
                email=CASE WHEN excluded.email IS NOT NULL AND excluded.email != '' THEN excluded.email ELSE users.email END;""",
             [uid, pw, u.get("role"), u.get("name"), u.get("inst"), user_email]
         ))
+
+    # Prune deleted teachers per institute so removals permanently sync across all devices
+    inst_ids_in_users = {u.get("inst") for u in incoming_users if u.get("inst") and u.get("role") == "institute"}
+    inst_ids_in_insts = {ins.get("id") for ins in incoming_insts if ins.get("id")}
+    for inst_id in (inst_ids_in_users | inst_ids_in_insts):
+        active_tids = [u.get("id") for u in incoming_users if u.get("role") == "teacher" and u.get("inst") == inst_id and u.get("id")]
+        if active_tids:
+            placeholders = ",".join("?" for _ in active_tids)
+            batch.append((
+                f"DELETE FROM users WHERE role = 'teacher' AND inst = ? AND id NOT IN ({placeholders});",
+                [inst_id] + active_tids
+            ))
+        else:
+            # If full institute was sent but has 0 teachers, remove any remaining teachers
+            if any(u.get("role") == "institute" and (u.get("id") == inst_id or u.get("inst") == inst_id) for u in incoming_users):
+                batch.append(("DELETE FROM users WHERE role = 'teacher' AND inst = ?;", [inst_id]))
 
     # 3. Institutes
     for ins in incoming_insts:

@@ -1133,40 +1133,64 @@ button.custom-modal-close:hover,
   }
 
   header.top {
-    padding: 8px 12px;
-    height: auto;
-    min-height: 56px;
-    gap: 8px;
+    padding: 6px 10px !important;
+    height: 52px !important;
+    min-height: 52px !important;
+    max-height: 52px !important;
+    display: flex !important;
+    align-items: center !important;
+    justify-content: space-between !important;
+    flex-wrap: nowrap !important;
+    gap: 6px !important;
+    width: 100% !important;
+    box-sizing: border-box !important;
+    overflow: hidden !important;
   }
 
   .header-left {
-    gap: 8px;
-    flex: 1;
-    min-width: 0;
+    display: flex !important;
+    align-items: center !important;
+    gap: 6px !important;
+    flex: 1 1 auto !important;
+    min-width: 0 !important;
+    overflow: hidden !important;
   }
 
   .logo#leftLogo {
-    width: 36px;
-    height: 36px;
-    min-width: 36px;
-    font-size: 11px;
+    width: 32px !important;
+    height: 32px !important;
+    min-width: 32px !important;
+    font-size: 10px !important;
+    flex-shrink: 0 !important;
+  }
+
+  .header-left > div {
+    min-width: 0 !important;
+    overflow: hidden !important;
+    display: flex !important;
+    flex-direction: column !important;
+    justify-content: center !important;
   }
 
   #ttl {
-    font-size: 14px;
-    line-height: 1.2;
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    max-width: 170px;
+    font-size: 12.5px !important;
+    font-weight: 700 !important;
+    line-height: 1.2 !important;
+    white-space: nowrap !important;
+    overflow: hidden !important;
+    text-overflow: ellipsis !important;
+    max-width: 135px !important;
+    margin: 0 !important;
   }
 
   .header-sub, #subttl {
-    font-size: 11px;
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    max-width: 170px;
+    font-size: 10px !important;
+    line-height: 1.2 !important;
+    white-space: nowrap !important;
+    overflow: hidden !important;
+    text-overflow: ellipsis !important;
+    max-width: 135px !important;
+    margin: 0 !important;
   }
 
   .header-middle {
@@ -1174,31 +1198,51 @@ button.custom-modal-close:hover,
   }
 
   .header-right {
-    gap: 6px;
-    flex-shrink: 0;
+    display: flex !important;
+    align-items: center !important;
+    gap: 5px !important;
+    flex-shrink: 0 !important;
+    margin-left: auto !important;
   }
 
   .user-badge {
-    padding: 4px 8px;
-    gap: 6px;
+    display: flex !important;
+    align-items: center !important;
+    padding: 3px 6px !important;
+    gap: 4px !important;
+    background: rgba(255,255,255,0.1) !important;
+    border-radius: 14px !important;
+    max-width: 105px !important;
+    flex-shrink: 1 !important;
+    overflow: hidden !important;
   }
 
   .user-role-pill {
-    font-size: 9.5px;
-    padding: 2px 6px;
+    font-size: 9px !important;
+    padding: 2px 5px !important;
+    border-radius: 6px !important;
+    line-height: 1 !important;
+    white-space: nowrap !important;
+    flex-shrink: 0 !important;
   }
 
   .user-name {
-    font-size: 12px;
-    max-width: 70px;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
+    font-size: 11px !important;
+    max-width: 50px !important;
+    overflow: hidden !important;
+    text-overflow: ellipsis !important;
+    white-space: nowrap !important;
   }
 
   button.out {
-    padding: 5px 10px;
-    font-size: 12px;
+    padding: 4px 8px !important;
+    font-size: 11px !important;
+    font-weight: 600 !important;
+    height: 28px !important;
+    min-height: 28px !important;
+    line-height: 1 !important;
+    flex-shrink: 0 !important;
+    border-radius: 6px !important;
   }
 
   /* Horizontal Scrollable Tabs on Mobile */
@@ -1417,18 +1461,35 @@ button.custom-modal-close:hover,
 
 @media (max-width: 480px) {
   .logo#leftLogo {
-    width: 32px;
-    height: 32px;
-    min-width: 32px;
+    width: 30px !important;
+    height: 30px !important;
+    min-width: 30px !important;
   }
 
   #ttl {
-    font-size: 13px;
-    max-width: 130px;
+    font-size: 11.5px !important;
+    max-width: 105px !important;
   }
 
   .header-sub, #subttl {
-    max-width: 130px;
+    font-size: 9px !important;
+    max-width: 105px !important;
+  }
+
+  .user-badge {
+    max-width: 75px !important;
+    padding: 2px 5px !important;
+  }
+
+  .user-name {
+    display: none !important; /* Hide user name on small phones, show role pill only to guarantee ZERO overlap */
+  }
+
+  button.out {
+    padding: 3px 6px !important;
+    font-size: 10.5px !important;
+    height: 26px !important;
+    min-height: 26px !important;
   }
 
   .stat-grid {
@@ -1446,6 +1507,40 @@ button.custom-modal-close:hover,
 
   .stat-label {
     font-size: 10px;
+  }
+}
+
+@media (max-width: 360px) {
+  header.top {
+    padding: 4px 6px !important;
+    gap: 4px !important;
+  }
+
+  .logo#leftLogo {
+    width: 26px !important;
+    height: 26px !important;
+    min-width: 26px !important;
+    font-size: 8px !important;
+  }
+
+  #ttl {
+    font-size: 11px !important;
+    max-width: 85px !important;
+  }
+
+  .header-sub, #subttl {
+    font-size: 8.5px !important;
+    max-width: 85px !important;
+  }
+
+  .user-role-pill {
+    font-size: 8px !important;
+    padding: 2px 4px !important;
+  }
+
+  button.out {
+    padding: 2px 5px !important;
+    font-size: 10px !important;
   }
 }
 

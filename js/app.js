@@ -39,14 +39,15 @@ window.addEventListener('storage',(e)=>{
 function isUserEditingForm(){
   const active=document.activeElement;
   if(!active) return false;
+  // If custom modal is open, do not re-render view
+  if(document.querySelector('#customModalOverlay')) return true;
   // If only searching students/classes, do not block real-time background sync
   if(active.id==='stuSearch'||active.id==='classSearch') return false;
   const tag=active.tagName;
-  if(tag==='INPUT'||tag==='TEXTAREA'||tag==='SELECT'){
+  if(tag==='INPUT'||tag==='TEXTAREA'){
+    if(active.type==='date'||active.type==='button'||active.type==='submit'||active.type==='checkbox'||active.type==='radio') return false;
     return (active.value && active.value.trim().length > 0);
   }
-  if(active.isContentEditable) return true;
-  if(document.querySelector('#customModalOverlay')) return true;
   return false;
 }
 
@@ -77,6 +78,11 @@ function applyDashboardSync(force=false){
         h.textContent=`Enrolled Students (${mine('students').length})`;
       }
     });
+  }
+
+  // Targeted update: If user is on Teachers tab, always refresh the faculty table instantly
+  if(tab==='Teachers'&&$('#teachersTableContainer')){
+    renderTeachersTable();
   }
 
   // If user is actively typing into an add/edit form, do not blow away whole tab
@@ -167,15 +173,19 @@ async function fetchFromTurso(force=false){
     return;
   }
   isFetchingTurso=true;
+  const abortCtrl = new AbortController();
+  const timeoutId = setTimeout(() => abortCtrl.abort(), 3500);
   try{
     // Strict cache-busting: add timestamp query & headers so mobile/browsers NEVER use cached response
     const res=await fetch('/api/db?_t=' + Date.now(),{
       cache: 'no-store',
+      signal: abortCtrl.signal,
       headers: {
         'Cache-Control': 'no-cache, no-store, must-revalidate',
         'Pragma': 'no-cache'
       }
     });
+    clearTimeout(timeoutId);
     if(res.ok){
       const json=await res.json();
       if(json.ok&&json.data){
@@ -204,8 +214,11 @@ async function fetchFromTurso(force=false){
       }
     }
   }catch(err){
-    console.warn('[Turso Cloud DB] Offline or cached mode:', err.message);
+    if(err.name !== 'AbortError'){
+      console.warn('[Turso Cloud DB] Offline or cached mode:', err.message);
+    }
   }finally{
+    clearTimeout(timeoutId);
     isFetchingTurso=false;
   }
 }
@@ -216,15 +229,22 @@ fetchFromTurso(false);
 // Background Real-Time Polling every 1.5 seconds for instant cross-device updates
 setInterval(()=>fetchFromTurso(false), 1500);
 
-// Instant Sync on window focus, mobile unlock, and page visibility changes
-window.addEventListener('focus',()=>fetchFromTurso(true));
-window.addEventListener('pageshow',()=>fetchFromTurso(true));
-document.addEventListener('visibilitychange',()=>{
-  if(document.visibilityState==='visible'){
-    fetchFromTurso(true);
-  }
+// Instant Sync on window focus, mobile unlock, screen touch, and page visibility changes
+let lastTouchSyncTime = 0;
+['focus', 'pageshow', 'online'].forEach(evt => {
+  window.addEventListener(evt, () => fetchFromTurso(true));
 });
-window.addEventListener('online',()=>fetchFromTurso(true));
+document.addEventListener('visibilitychange', () => {
+  if (document.visibilityState === 'visible') fetchFromTurso(true);
+});
+['touchstart', 'pointerdown'].forEach(evt => {
+  window.addEventListener(evt, () => {
+    if (Date.now() - lastTouchSyncTime > 2500) {
+      lastTouchSyncTime = Date.now();
+      fetchFromTurso(false);
+    }
+  }, { passive: true });
+});
 
 const rnd=n=>Array.from({length:n},()=>String.fromCharCode(97+Math.floor(Math.random()*26))).join('');
 const today=()=>new Date().toISOString().slice(0,10);
@@ -1162,8 +1182,14 @@ institute:{
     <input id=te placeholder="Teacher email (for password recovery)" style="margin:0;flex:1;min-width:200px">
     <button onclick="addTeacher()">Add Teacher</button>
   </div></div>
-  <div class=card><div class="card-header"><h3>Active Faculty Members (${db.users.filter(u=>u.role==='teacher'&&u.inst===I()).length})</h3></div>
-  ${tbl(['Name','User ID','Login Password'],db.users.filter(u=>u.role==='teacher'&&u.inst===I()).map(t=>[esc(t.name),`<span class="pill">${t.id}</span>`,t.pw]))}</div>`,
+  <div class=card>
+    <div class="card-header">
+      <h3 id="teachersCountHeader">Active Faculty Members (${(db.users||[]).filter(u=>u.role==='teacher'&&u.inst===I()).length})</h3>
+    </div>
+    <div id="teachersTableContainer">
+      ${buildTeachersTable()}
+    </div>
+  </div>`,
 
  'Students':()=>`${instStatsHeader()}<div class=card><h3>🎓 Enroll New Student</h3>
   <div class=grid><input id=nm placeholder="Student full name"><input id=em placeholder="Email address">
@@ -1397,6 +1423,34 @@ function renderStudentsTable(filterText){
   const filtered=term ? all.filter(s=>s.name.toLowerCase().includes(term)||s.uid.toLowerCase().includes(term)||(s.cls||'').toLowerCase().includes(term)) : all;
   const container=$('#stuTableContainer');
   if(container) container.innerHTML=buildStudentsTable(filtered);
+}
+
+function buildTeachersTable(){
+  const teachers = (db.users || []).filter(u => u.role === 'teacher' && u.inst === I());
+  if(!teachers.length){
+    return '<p style="color:#64748b;font-size:13px;padding:14px 0">No faculty members added yet.</p>';
+  }
+  return tbl(['Name','User ID','Login Password','Action'], teachers.map(t => {
+    const pwDisplay = t.pw ? `<code style="font-family:monospace;font-weight:700;color:#047857;background:#ecfdf5;padding:4px 8px;border-radius:6px;border:1px solid #a7f3d0;font-size:13px">${esc(t.pw)}</code>` : '<span style="color:#94a3b8">-</span>';
+    return [
+      `<b>${esc(t.name)}</b>`,
+      `<span class="pill">${esc(t.id)}</span>`,
+      pwDisplay,
+      `<div style="display:flex;gap:6px;align-items:center">
+        <button type="button" class="secondary" onclick="resetTeacherPw('${esc(t.id)}')" style="padding:6px 10px;font-size:12px;cursor:pointer" title="Reset Faculty Password">🔑 Reset</button>
+        <button type="button" class="red" onclick="delTeacher('${esc(t.id)}')" style="padding:6px 12px;font-size:12px;cursor:pointer" title="Delete Faculty Member">Delete</button>
+      </div>`
+    ];
+  }));
+}
+
+function renderTeachersTable(){
+  const container = $('#teachersTableContainer');
+  if(container) container.innerHTML = buildTeachersTable();
+  const th = $('#teachersCountHeader');
+  if(th){
+    th.textContent = `Active Faculty Members (${(db.users||[]).filter(u=>u.role==='teacher'&&u.inst===I()).length})`;
+  }
 }
 
 /* ---------- dashboard initialization ---------- */
@@ -1805,9 +1859,83 @@ function resetStudentPw(uid){
   };
 }
 
+function resetTeacherPw(tid){
+  closeCustomModal();
+  if(!tid) return uiToast('Invalid teacher identifier', 'error');
+
+  const t = (db.users || []).find(x => x.id === tid);
+  if(!t) return uiToast('Teacher record not found', 'error');
+
+  const generatedPw = rnd(6);
+  const overlay = document.createElement('div');
+  overlay.id = 'customModalOverlay';
+  overlay.style.cssText = 'position:fixed!important;top:0!important;left:0!important;right:0!important;bottom:0!important;width:100vw!important;height:100vh!important;background:rgba(15,23,42,0.7)!important;backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px);display:flex!important;align-items:center!important;justify-content:center!important;z-index:999999999!important;padding:20px!important;box-sizing:border-box!important;margin:0!important;';
+  overlay.innerHTML = `
+    <div class="custom-modal-card" style="background:#ffffff!important;border-radius:18px!important;max-width:500px!important;width:100%!important;box-shadow:0 25px 60px rgba(0,0,0,0.35),0 10px 20px rgba(0,0,0,0.15)!important;border:1px solid #e2e8f0!important;overflow:hidden!important;margin:auto!important;position:relative!important;z-index:1000000000!important;box-sizing:border-box!important;">
+      <div class="custom-modal-header" style="padding:20px 24px 16px!important;border-bottom:1px solid #f1f5f9!important;display:flex!important;align-items:center!important;justify-content:space-between!important;">
+        <div class="custom-modal-title-wrap" style="display:flex!important;align-items:center!important;gap:12px!important;">
+          <div class="custom-modal-icon-badge" style="width:38px!important;height:38px!important;border-radius:10px!important;background:#eff6ff!important;color:#2563eb!important;display:flex!important;align-items:center!important;justify-content:center!important;font-size:20px!important;flex-shrink:0!important;">🔑</div>
+          <h3 class="custom-modal-title" style="font-size:18px!important;font-weight:700!important;color:#0f172a!important;margin:0!important;">Reset Faculty Password</h3>
+        </div>
+        <button type="button" class="custom-modal-close" id="modalCloseX" style="background:transparent!important;border:none!important;font-size:24px!important;color:#94a3b8!important;cursor:pointer!important;line-height:1!important;border-radius:8px!important;padding:0!important;width:34px!important;height:34px!important;display:inline-flex!important;align-items:center!important;justify-content:center!important;box-shadow:none!important;transform:none!important;min-width:auto!important;margin:0!important;">×</button>
+      </div>
+      <div class="custom-modal-body" style="padding:22px 24px!important;color:#334155!important;font-size:14px!important;line-height:1.6!important;max-height:72vh!important;overflow-y:auto!important;box-sizing:border-box!important;">
+        <p>Set a new password for faculty member <b>${esc(t.name)}</b></p>
+        <div style="background:#f8fafc;padding:12px;border-radius:10px;font-size:13px;margin:12px 0 16px;border:1px solid #e2e8f0">
+          <div>Teacher Name: <b>${esc(t.name)}</b></div>
+          <div style="margin-top:4px">User ID: <code style="font-weight:700;color:#2563eb">${esc(t.id)}</code> • Role: <b>Faculty Member</b></div>
+          <div style="margin-top:4px">Current Password: <span style="font-family:monospace;font-weight:600;color:#0f766e">${esc(t.pw||'-')}</span></div>
+        </div>
+        <label class="form-label" style="font-weight:600">New Password:</label>
+        <div style="display:flex;gap:8px">
+          <input class="custom-modal-input" id="newTchPwInput" value="${generatedPw}" placeholder="Enter new password" style="margin:0" autocomplete="off">
+          <button type="button" class="secondary" id="genTchPwBtn" style="padding:10px 14px;white-space:nowrap">🎲 Generate</button>
+        </div>
+      </div>
+      <div class="custom-modal-footer" style="padding:16px 24px 20px!important;border-top:1px solid #f1f5f9!important;display:flex!important;align-items:center!important;justify-content:flex-end!important;gap:10px!important;background:#fafafa!important;">
+        <button type="button" class="secondary" id="cancelResetTchBtn" style="padding:10px 18px">Cancel</button>
+        <button type="button" class="primary" id="confirmResetTchBtn" style="padding:10px 22px">Save Password</button>
+      </div>
+    </div>
+  `;
+  document.body.appendChild(overlay);
+
+  overlay.querySelector('#modalCloseX').onclick = () => closeCustomModal();
+  overlay.querySelector('#cancelResetTchBtn').onclick = () => closeCustomModal();
+  overlay.querySelector('#genTchPwBtn').onclick = () => {
+    const inp = overlay.querySelector('#newTchPwInput');
+    if(inp) inp.value = rnd(6);
+  };
+
+  overlay.querySelector('#confirmResetTchBtn').onclick = async () => {
+    const inputEl = overlay.querySelector('#newTchPwInput');
+    const newPw = (inputEl ? inputEl.value : '').trim();
+    if(!newPw) return uiToast('Password cannot be empty', 'warning');
+
+    t.pw = newPw;
+    save(true);
+
+    try{
+      await fetch('/api/users/password',{
+        method: 'PUT',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({id: tid, pw: newPw})
+      });
+    }catch(err){
+      console.warn('Backend password sync error:', err);
+    }
+
+    closeCustomModal();
+    renderTeachersTable();
+    uiAlert('Faculty Password Reset', `Teacher Name: ${t.name}\nUser ID: ${t.id}\nNew Password: ${newPw}\n\nPlease share these credentials with the faculty member.`);
+    uiToast(`Password for ${t.name} updated!`, 'success');
+  };
+}
+
 // Explicit global exposure for inline onclick attributes
 window.resetInstPw = resetInstPw;
 window.resetStudentPw = resetStudentPw;
+window.resetTeacherPw = resetTeacherPw;
 
 /* ---------- actions ---------- */
 function addInst(){
@@ -1972,6 +2100,30 @@ function delStu(id){
     uiToast(`Student record for ${name} deleted`, 'info');
   });
 }
+
+function delTeacher(id){
+  const t=(db.users||[]).find(u=>u.id===id);
+  const name=t?t.name:id;
+  uiConfirm('Delete Faculty Member', `Are you sure you want to remove teacher "${name}"?\nAny assigned subjects will become unassigned and their login access will be revoked permanently.`, ()=>{
+    // 1. Remove from local users
+    db.users=(db.users||[]).filter(u=>u.id!==id);
+    // 2. Unassign from subjects
+    if(db.subjects){
+      db.subjects.forEach(s=>{
+        if(s.teacher===id||s.teacher===name) s.teacher='';
+      });
+    }
+    // 3. Save locally and sync immediately to Turso cloud
+    save(true);
+    // 4. Send DELETE request to backend to ensure removal from Turso DB
+    fetch(`/api/teachers?id=${encodeURIComponent(id)}`, {method:'DELETE'}).catch(()=>{});
+    // 5. Update UI table and count immediately (0ms delay)
+    renderTeachersTable();
+    if(typeof tab!=='undefined'&&tab==='Teachers') go(tab);
+    uiToast(`Faculty member "${name}" removed successfully`, 'info');
+  });
+}
+window.delTeacher = delTeacher;
 
 function saveAtt(){
   const d=val('ad');

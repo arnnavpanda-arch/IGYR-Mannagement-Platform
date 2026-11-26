@@ -456,7 +456,22 @@ class IgyrRequestHandler(SimpleHTTPRequestHandler):
                 try:
                     turso_db.execute("DELETE FROM students WHERE uid = ?;", [uid])
                     turso_db.execute("DELETE FROM users WHERE id = ?;", [uid])
+                    turso_db.invalidate_db_cache()
                     self._send_json({"ok": True, "message": f"Student {uid} deleted"})
+                    return
+                except Exception as e:
+                    self._send_json({"ok": False, "error": str(e)}, status=HTTPStatus.INTERNAL_SERVER_ERROR)
+                    return
+
+        # Delete Teacher / Faculty Member
+        if path == "/api/teachers" or path == "/api/users":
+            tid = params.get("id", [None])[0] or params.get("uid", [None])[0]
+            if tid:
+                try:
+                    turso_db.execute("DELETE FROM users WHERE id = ? AND role = 'teacher';", [tid])
+                    turso_db.execute("UPDATE subjects SET teacher = '' WHERE teacher = ?;", [tid])
+                    turso_db.invalidate_db_cache()
+                    self._send_json({"ok": True, "message": f"Teacher {tid} deleted successfully."})
                     return
                 except Exception as e:
                     self._send_json({"ok": False, "error": str(e)}, status=HTTPStatus.INTERNAL_SERVER_ERROR)
