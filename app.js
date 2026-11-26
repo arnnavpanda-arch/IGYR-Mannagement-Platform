@@ -42,7 +42,9 @@ function isUserEditingForm(){
   // If only searching students/classes, do not block real-time background sync
   if(active.id==='stuSearch'||active.id==='classSearch') return false;
   const tag=active.tagName;
-  if(tag==='INPUT'||tag==='TEXTAREA'||tag==='SELECT') return true;
+  if(tag==='INPUT'||tag==='TEXTAREA'||tag==='SELECT'){
+    return (active.value && active.value.trim().length > 0);
+  }
   if(active.isContentEditable) return true;
   if(document.querySelector('#customModalOverlay')) return true;
   return false;
@@ -65,21 +67,24 @@ function applyDashboardSync(force=false){
   if(welcomeEl&&(welcomeEl.classList.contains('active')||welcomeEl.style.display==='flex')){
     showFullScreenWelcome();
   }
+
+  // Targeted update: If user is on Students tab, always refresh the table instantly
+  if(tab==='Students'&&$('#stuTableContainer')){
+    renderStudentsTable($('#stuSearch')?$('#stuSearch').value:'');
+    const countHeaders=document.querySelectorAll('h3');
+    countHeaders.forEach(h => {
+      if(h.textContent.includes('Enrolled Students')){
+        h.textContent=`Enrolled Students (${mine('students').length})`;
+      }
+    });
+  }
+
+  // If user is actively typing into an add/edit form, do not blow away whole tab
   if(!force&&isUserEditingForm()){
     pendingSyncRender=true;
     return;
   }
   pendingSyncRender=false;
-
-  // Lightweight Targeted Re-renders if container exists
-  if(tab==='Students'&&$('#stuTableContainer')){
-    renderStudentsTable($('#stuSearch')?$('#stuSearch').value:'');
-    const countHeader=document.querySelector('.card-header h3');
-    if(countHeader&&countHeader.textContent.includes('Enrolled Students')){
-      countHeader.textContent=`Enrolled Students (${mine('students').length})`;
-    }
-    return;
-  }
 
   if(typeof tab!=='undefined'&&tab&&typeof go==='function'&&typeof U!=='undefined'&&U&&typeof T!=='undefined'&&T[U.role]){
     go(tab);
@@ -157,20 +162,27 @@ async function pushToTurso(){
 async function fetchFromTurso(force=false){
   if(isFetchingTurso) return;
   // Guard against race condition: never overwrite local database while a save is in-flight
-  // or within 3 seconds of a user adding/editing records locally!
-  if(!force && (isPushingTurso || (Date.now() - lastLocalChangeTime < 3000))){
+  // or within 2.5 seconds of a user adding/editing records locally!
+  if(!force && (isPushingTurso || (Date.now() - lastLocalChangeTime < 2500))){
     return;
   }
   isFetchingTurso=true;
   try{
-    const res=await fetch('/api/db');
+    // Strict cache-busting: add timestamp query & headers so mobile/browsers NEVER use cached response
+    const res=await fetch('/api/db?_t=' + Date.now(),{
+      cache: 'no-store',
+      headers: {
+        'Cache-Control': 'no-cache, no-store, must-revalidate',
+        'Pragma': 'no-cache'
+      }
+    });
     if(res.ok){
       const json=await res.json();
       if(json.ok&&json.data){
         const cloudDb=json.data;
         if(cloudDb.users&&cloudDb.users.length>0){
           // If recent local changes occurred, prevent stale cloud snapshot with fewer students
-          if(!force && (Date.now() - lastLocalChangeTime < 5000)){
+          if(!force && (Date.now() - lastLocalChangeTime < 4500)){
             const localCount = (db.students||[]).length;
             const cloudCount = (cloudDb.students||[]).length;
             if(cloudCount < localCount){
@@ -201,8 +213,8 @@ async function fetchFromTurso(force=false){
 // Initial fetch on page load
 fetchFromTurso(false);
 
-// Background Real-Time Polling every 1.8 seconds for instant cross-device updates
-setInterval(()=>fetchFromTurso(false), 1800);
+// Background Real-Time Polling every 1.5 seconds for instant cross-device updates
+setInterval(()=>fetchFromTurso(false), 1500);
 
 // Instant Sync on window focus, mobile unlock, and page visibility changes
 window.addEventListener('focus',()=>fetchFromTurso(true));
@@ -1589,12 +1601,10 @@ async function initDashboard(){
   U=me();
   if(!U){ location.href='index.html'; return; }
 
-  // CRITICAL FOR MOBILE: If local storage is fresh/empty on mobile, fetch complete cloud data first!
-  if(!db || !db.insts || db.insts.length === 0 || !db.users || db.users.length <= 1){
-    try{
-      await fetchFromTurso(true);
-    }catch(e){}
-  }
+  // Always fetch fresh data from Turso Cloud on dashboard load so other devices' changes show on the very first load!
+  try{
+    await fetchFromTurso(true);
+  }catch(e){}
 
   // Ensure institute is set on U
   if(!U.inst){

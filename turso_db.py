@@ -262,10 +262,6 @@ def init_db():
 
 def get_full_db(force_refresh: bool = False) -> Dict[str, Any]:
     """Retrieve full database in the exact structure expected by the frontend."""
-    global _DB_CACHE, _DB_CACHE_TIME, _DB_VERSION
-    now = time.time()
-    if not force_refresh and _DB_CACHE is not None and (now - _DB_CACHE_TIME) < 1.5:
-        return _DB_CACHE
     # 1. System Config (Logo)
     config_rows = query("SELECT key, value FROM system_config;")
     config_dict = {r["key"]: r["value"] for r in config_rows}
