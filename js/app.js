@@ -102,6 +102,10 @@ const save=(immediateCloud=false)=>{
 };
 
 async function pushToTurso(){
+  // Safety guard: Never push empty default database from a fresh mobile/browser
+  if(!db || !db.users || (db.users.length <= 1 && (!db.insts || db.insts.length === 0))){
+    return;
+  }
   try{
     const res=await fetch('/api/db/save',{
       method:'POST',

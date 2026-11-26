@@ -41,7 +41,18 @@ class IgyrRequestHandler(SimpleHTTPRequestHandler):
         super().__init__(*args, directory=directory, **kwargs)
 
     def _normalize_path(self):
-        parsed = urlparse(self.path)
+        req_path = self.path
+        if hasattr(self, "headers") and self.headers:
+            forwarded = (
+                self.headers.get("x-forwarded-uri") or 
+                self.headers.get("x-matched-path") or 
+                self.headers.get("x-now-route-matches") or 
+                ""
+            )
+            if forwarded and not forwarded.endswith(".py"):
+                req_path = forwarded
+
+        parsed = urlparse(req_path)
         path = parsed.path.rstrip("/")
         if not path.startswith("/api") and (
             path.startswith("/auth") or 

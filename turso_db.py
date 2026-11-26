@@ -378,26 +378,36 @@ def get_full_db() -> Dict[str, Any]:
     }
 
 def save_full_db(data: Dict[str, Any]) -> None:
-    """Synchronize complete front-end state into Turso."""
+    """Synchronize complete front-end state into Turso safely."""
+    if not data or not isinstance(data, dict):
+        return
+
+    incoming_users = data.get("users", [])
+    incoming_insts = data.get("insts", [])
+
+    # SAFETY GUARD: Never wipe the database if the payload is from an uninitialized client!
+    if len(incoming_users) <= 1 and len(incoming_insts) == 0:
+        print("[Turso DB] Rejected save: client state is uninitialized.")
+        return
+
     batch = []
 
     # 1. Logo
     logo = data.get("logo", "")
-    batch.append((
-        "INSERT INTO system_config (key, value) VALUES ('logo', ?) ON CONFLICT(key) DO UPDATE SET value=excluded.value;",
-        [logo]
-    ))
+    if logo:
+        batch.append((
+            "INSERT INTO system_config (key, value) VALUES ('logo', ?) ON CONFLICT(key) DO UPDATE SET value=excluded.value;",
+            [logo]
+        ))
 
     # 2. Users
-    for u in data.get("users", []):
+    for u in incoming_users:
         uid = u.get("id")
         pw = u.get("pw", "")
-        if uid == "admin":
-            # Skip obsolete admin
+        if not uid or uid == "admin":
             continue
         if uid == "igyr":
             if not pw or pw == "***":
-                # Do not overwrite hashed password with placeholder
                 continue
             if not pw.startswith("pbkdf2:sha256:"):
                 pw = hash_password(pw)
@@ -410,35 +420,50 @@ def save_full_db(data: Dict[str, Any]) -> None:
         ))
 
     # 3. Institutes
-    for ins in data.get("insts", []):
+    for ins in incoming_insts:
+        ins_id = ins.get("id")
+        if not ins_id:
+            continue
         ins_email = ins.get("email")
         ins_logo = ins.get("logo") or ""
         batch.append((
             """INSERT INTO institutes (id, name, loc, det, email, logo) VALUES (?, ?, ?, ?, ?, ?)
                ON CONFLICT(id) DO UPDATE SET name=excluded.name, loc=excluded.loc, det=excluded.det,
                email=CASE WHEN excluded.email IS NOT NULL AND excluded.email != '' THEN excluded.email ELSE institutes.email END,
-               logo=excluded.logo;""",
-            [ins.get("id"), ins.get("name"), ins.get("loc"), ins.get("det"), ins_email, ins_logo]
+               logo=CASE WHEN excluded.logo IS NOT NULL AND excluded.logo != '' THEN excluded.logo ELSE institutes.logo END;""",
+            [ins_id, ins.get("name"), ins.get("loc"), ins.get("det"), ins_email, ins_logo]
         ))
 
-    # 4. Classes (Replace or sync)
-    batch.append("DELETE FROM classes;")
-    for c in data.get("classes", []):
-        batch.append((
-            "INSERT INTO classes (inst, name) VALUES (?, ?);",
-            [c.get("inst"), c.get("name")]
-        ))
+    # 4. Classes (Scoped per institute, do not delete other institutes' classes)
+    classes_list = data.get("classes", [])
+    if classes_list:
+        insts_in_payload = {c.get("inst") for c in classes_list if c.get("inst")}
+        for inst_id in insts_in_payload:
+            batch.append(("DELETE FROM classes WHERE inst = ?;", [inst_id]))
+        for c in classes_list:
+            if c.get("inst") and c.get("name"):
+                batch.append((
+                    "INSERT INTO classes (inst, name) VALUES (?, ?);",
+                    [c.get("inst"), c.get("name")]
+                ))
 
-    # 5. Subjects
-    batch.append("DELETE FROM subjects;")
-    for s in data.get("subjects", []):
-        batch.append((
-            "INSERT INTO subjects (inst, name, cls, teacher, fee) VALUES (?, ?, ?, ?, ?);",
-            [s.get("inst"), s.get("name"), s.get("cls"), s.get("teacher"), s.get("fee", 0)]
-        ))
+    # 5. Subjects (Scoped per institute)
+    subjects_list = data.get("subjects", [])
+    if subjects_list:
+        insts_in_payload = {s.get("inst") for s in subjects_list if s.get("inst")}
+        for inst_id in insts_in_payload:
+            batch.append(("DELETE FROM subjects WHERE inst = ?;", [inst_id]))
+        for s in subjects_list:
+            if s.get("inst") and s.get("name"):
+                batch.append((
+                    "INSERT INTO subjects (inst, name, cls, teacher, fee) VALUES (?, ?, ?, ?, ?);",
+                    [s.get("inst"), s.get("name"), s.get("cls"), s.get("teacher"), s.get("fee", 0)]
+                ))
 
     # 6. Students
     for st in data.get("students", []):
+        if not st.get("uid") or not st.get("inst"):
+            continue
         batch.append((
             """INSERT INTO students (uid, inst, name, cls, feeType, fee, joinDate, email, phone, addr, photo, done)
                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
@@ -453,17 +478,29 @@ def save_full_db(data: Dict[str, Any]) -> None:
                 1 if st.get("done") else 0
             ]
         ))
+        # Ensure student class also exists in classes table
+        if st.get("cls") and st.get("inst"):
+            batch.append((
+                "INSERT INTO classes (inst, name) SELECT ?, ? WHERE NOT EXISTS (SELECT 1 FROM classes WHERE inst = ? AND name = ?);",
+                [st.get("inst"), st.get("cls"), st.get("inst"), st.get("cls")]
+            ))
 
     # 7. Attendance
-    batch.append("DELETE FROM attendance;")
-    for a in data.get("att", []):
-        batch.append((
-            "INSERT INTO attendance (inst, uid, cls, date, p) VALUES (?, ?, ?, ?, ?);",
-            [a.get("inst"), a.get("uid"), a.get("cls"), a.get("date"), 1 if a.get("p") else 0]
-        ))
+    att_list = data.get("att", [])
+    if att_list:
+        insts_in_payload = {a.get("inst") for a in att_list if a.get("inst")}
+        for inst_id in insts_in_payload:
+            batch.append(("DELETE FROM attendance WHERE inst = ?;", [inst_id]))
+        for a in att_list:
+            batch.append((
+                "INSERT INTO attendance (inst, uid, cls, date, p) VALUES (?, ?, ?, ?, ?);",
+                [a.get("inst"), a.get("uid"), a.get("cls"), a.get("date"), 1 if a.get("p") else 0]
+            ))
 
     # 8. Payments
     for p in data.get("pays", []):
+        if not p.get("id"):
+            continue
         batch.append((
             """INSERT INTO payments (id, inst, uid, amt, date) VALUES (?, ?, ?, ?, ?)
                ON CONFLICT(id) DO UPDATE SET inst=excluded.inst, uid=excluded.uid, amt=excluded.amt, date=excluded.date;""",
@@ -471,38 +508,49 @@ def save_full_db(data: Dict[str, Any]) -> None:
         ))
 
     # 9. Timetables
-    batch.append("DELETE FROM timetables;")
-    for t in data.get("tt", []):
-        batch.append((
-            "INSERT INTO timetables (inst, cls, day, time, sub) VALUES (?, ?, ?, ?, ?);",
-            [t.get("inst"), t.get("cls"), t.get("day"), t.get("time"), t.get("sub")]
-        ))
+    tt_list = data.get("tt", [])
+    if tt_list:
+        insts_in_payload = {t.get("inst") for t in tt_list if t.get("inst")}
+        for inst_id in insts_in_payload:
+            batch.append(("DELETE FROM timetables WHERE inst = ?;", [inst_id]))
+        for t in tt_list:
+            batch.append((
+                "INSERT INTO timetables (inst, cls, day, time, sub) VALUES (?, ?, ?, ?, ?);",
+                [t.get("inst"), t.get("cls"), t.get("day"), t.get("time"), t.get("sub")]
+            ))
 
     # 10. Materials
-    batch.append("DELETE FROM materials;")
-    for m in data.get("mats", []):
-        batch.append((
-            "INSERT INTO materials (inst, cls, title, name, data) VALUES (?, ?, ?, ?, ?);",
-            [m.get("inst"), m.get("cls"), m.get("title"), m.get("name"), m.get("data")]
-        ))
+    mats_list = data.get("mats", [])
+    if mats_list:
+        insts_in_payload = {m.get("inst") for m in mats_list if m.get("inst")}
+        for inst_id in insts_in_payload:
+            batch.append(("DELETE FROM materials WHERE inst = ?;", [inst_id]))
+        for m in mats_list:
+            batch.append((
+                "INSERT INTO materials (inst, cls, title, name, data) VALUES (?, ?, ?, ?, ?);",
+                [m.get("inst"), m.get("cls"), m.get("title"), m.get("name"), m.get("data")]
+            ))
 
     # 11. Announcements
-    batch.append("DELETE FROM announcements;")
-    for an in data.get("ann", []):
-        an_id = an.get("id")
-        if an_id is not None and str(an_id).isdigit():
-            batch.append((
-                "INSERT INTO announcements (id, inst, text, date) VALUES (?, ?, ?, ?);",
-                [int(an_id), an.get("inst"), an.get("text"), an.get("date")]
-            ))
-        else:
-            batch.append((
-                "INSERT INTO announcements (inst, text, date) VALUES (?, ?, ?);",
-                [an.get("inst"), an.get("text"), an.get("date")]
-            ))
+    ann_list = data.get("ann", [])
+    if ann_list:
+        for an in ann_list:
+            an_id = an.get("id")
+            if an_id is not None and str(an_id).isdigit():
+                batch.append((
+                    "INSERT INTO announcements (id, inst, text, date) VALUES (?, ?, ?, ?) ON CONFLICT(id) DO UPDATE SET text=excluded.text, date=excluded.date;",
+                    [int(an_id), an.get("inst"), an.get("text"), an.get("date")]
+                ))
+            else:
+                batch.append((
+                    "INSERT INTO announcements (inst, text, date) VALUES (?, ?, ?);",
+                    [an.get("inst"), an.get("text"), an.get("date")]
+                ))
 
     # 12. Exams
     for e in data.get("exams", []):
+        if not e.get("id"):
+            continue
         qs_str = json.dumps(e.get("qs", []))
         batch.append((
             """INSERT INTO exams (id, inst, cls, title, qs, open) VALUES (?, ?, ?, ?, ?, ?)
@@ -511,14 +559,16 @@ def save_full_db(data: Dict[str, Any]) -> None:
         ))
 
     # 13. Results
-    batch.append("DELETE FROM results;")
     for r in data.get("res", []):
+        if not r.get("inst") or not r.get("exam") or not r.get("uid"):
+            continue
         batch.append((
             "INSERT INTO results (inst, exam, uid, score, total) VALUES (?, ?, ?, ?, ?);",
             [r.get("inst"), r.get("exam"), r.get("uid"), r.get("score"), r.get("total")]
         ))
 
-    execute_batch(batch)
+    if batch:
+        execute_batch(batch)
 
 def authenticate_user(raw_id: str, pw: str) -> Optional[Dict[str, Any]]:
     """Authenticate user with ID and encrypted password verification.
