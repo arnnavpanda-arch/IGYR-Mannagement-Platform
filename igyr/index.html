@@ -1,0 +1,58 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=5">
+  <title>IGYR - Smart Institute & Student Management Platform</title>
+  <meta name="description" content="IGYR Smart Management Platform for educational institutes, coaching centers, teachers, and students. Complete portal for courses, fees, exams, attendance, and notice board.">
+  <meta name="keywords" content="IGYR, institute management, student portal, school management, attendance, fee receipt, online exam, notice board">
+  <meta name="robots" content="index, follow">
+  <meta name="theme-color" content="#2563eb">
+  
+  <!-- Open Graph / Social Sharing -->
+  <meta property="og:type" content="website">
+  <meta property="og:title" content="IGYR - Smart Institute & Student Management Platform">
+  <meta property="og:description" content="All-in-one educational platform for institute administration, faculty teaching, and student learning.">
+  <meta property="og:url" content="https://igyr-platform.vercel.app/">
+  <link rel="canonical" href="https://igyr-platform.vercel.app/">
+  
+  <!-- Google Search Console Verification -->
+  <meta name="google-site-verification" content="68Wt2TwpaGdrpZnHpcIdKtiDwegBlJz_mPjM4hovRrI" />
+  
+  <link rel="stylesheet" href="css/style.css?v=2.8">
+</head>
+<body>
+  <header class="top">
+    <div class="header-left">
+      <div class="logo" id="leftLogo">LOGO</div>
+      <div>
+        <h1 id="ttl">IGYR - Smart Management Platform</h1>
+        <div class="header-sub">Institute, Teacher & Student Portal</div>
+      </div>
+    </div>
+  </header>
+  <main class="center">
+    <div style="display:flex;flex-direction:column;align-items:center;width:100%;max-width:380px">
+      <div class="card login" style="width:100%;margin-bottom:0">
+        <div class="logo mid" id="midLogo">LOGO</div>
+        <h2>Portal Login</h2>
+        <input id="uid" placeholder="User ID / Name" autocomplete="off">
+        <input id="pw" type="password" placeholder="Password">
+        <button onclick="login()">Sign In</button>
+        <div>
+          <a href="#" class="forgot-link" onclick="openForgotPasswordModal(); return false;">Forgot password?</a>
+        </div>
+        <p id="err" class="err"></p>
+        <div id="loginSuccessNotice" style="display:none;width:100%"></div>
+      </div>
+
+      <!-- Directly below the login panel: Privacy & Policies -->
+      <div class="login-sublinks">
+        <a href="#" onclick="showInfo('Privacy Policy','Data is stored locally in your browser session for this institute and is not shared with third parties.');return false">Privacy</a> • 
+        <a href="#" onclick="showInfo('Terms of Use','Use this platform strictly for institute management and keep your login credentials secure.');return false">Policies</a>
+      </div>
+    </div>
+  </main>
+  <script src="js/app.js?v=2.8"></script>
+</body>
+</html>

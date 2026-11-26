@@ -1,0 +1,7 @@
+# Robots.txt for IGYR Smart Platform
+User-agent: *
+Allow: /
+Disallow: /api/
+
+# Sitemap location
+Sitemap: https://igyr-platform.vercel.app/sitemap.xml

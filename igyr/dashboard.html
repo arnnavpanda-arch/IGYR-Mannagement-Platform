@@ -1,0 +1,51 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=5">
+  <title>Dashboard - IGYR Smart Platform</title>
+  <meta name="description" content="IGYR Smart Management Platform Dashboard for institutes, faculty, and students.">
+  <meta name="robots" content="noindex, nofollow">
+  <meta name="theme-color" content="#2563eb">
+  <meta name="google-site-verification" content="68Wt2TwpaGdrpZnHpcIdKtiDwegBlJz_mPjM4hovRrI" />
+  <link rel="stylesheet" href="css/style.css?v=2.8">
+</head>
+<body>
+  <!-- Full Screen Welcome Overlay -->
+  <div id="fullScreenWelcome" class="fullscreen-welcome" style="display:none!important"></div>
+
+  <!-- Normal Dashboard Application -->
+  <div id="dashboardApp" style="display:block">
+    <header class="top">
+      <div class="header-left">
+        <div class="logo" id="leftLogo">LOGO</div>
+        <div>
+          <h1 id="ttl">IGYR - Smart Management Platform</h1>
+          <div id="subttl" class="header-sub">Dashboard</div>
+        </div>
+      </div>
+      <!-- Center Middle Space: Bold Capital Big Letters in Neon Blue -->
+      <div class="header-middle" id="headerMiddle">
+        <span class="neon-blue-text" id="neonHeaderTitle"></span>
+      </div>
+      <div class="header-right">
+        <div class="user-badge" id="userBadge">
+          <span class="user-role-pill" id="userRolePill">Role</span>
+          <span class="user-name" id="userName">User</span>
+        </div>
+        <button class="out" onclick="logout()">Logout</button>
+      </div>
+    </header>
+    <div class="dash-layout">
+      <aside class="sidebar">
+        <div class="sidebar-header" id="sidebarTitle">MENU</div>
+        <nav id="nav"></nav>
+      </aside>
+      <main class="main-content">
+        <section id="view" class="view"></section>
+      </main>
+    </div>
+  </div>
+  <script src="js/app.js?v=2.8"></script>
+</body>
+</html>
