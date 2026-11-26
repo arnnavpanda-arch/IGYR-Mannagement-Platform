@@ -126,7 +126,7 @@ class IgyrRequestHandler(SimpleHTTPRequestHandler):
         if path == "/api/db":
             try:
                 db_data = turso_db.get_full_db()
-                self._send_json({"ok": True, "data": db_data})
+                self._send_json({"ok": True, "data": db_data, "version": turso_db._DB_VERSION})
             except Exception as e:
                 self._send_json({"ok": False, "error": str(e)}, status=HTTPStatus.INTERNAL_SERVER_ERROR)
             return
@@ -317,7 +317,7 @@ class IgyrRequestHandler(SimpleHTTPRequestHandler):
         if path == "/api/db/save":
             try:
                 turso_db.save_full_db(body)
-                self._send_json({"ok": True, "message": "Saved to Turso cloud successfully."})
+                self._send_json({"ok": True, "message": "Saved to Turso cloud successfully.", "version": turso_db._DB_VERSION})
             except Exception as e:
                 self._send_json({"ok": False, "error": str(e)}, status=HTTPStatus.INTERNAL_SERVER_ERROR)
             return

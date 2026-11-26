@@ -5,6 +5,9 @@ let U=null, tab=null;
 let lastDbSnapshot=JSON.stringify(db);
 let pendingSyncRender=false;
 let isFetchingTurso=false;
+let isPushingTurso=false;
+let lastLocalChangeTime=0;
+let cloudVersion=0;
 
 /* Cross-Tab & Multi-Window Real-time Broadcast Channel */
 let realtimeChannel=null;
@@ -13,7 +16,15 @@ try{
     realtimeChannel=new BroadcastChannel('igyr_realtime_sync');
     realtimeChannel.onmessage=(ev)=>{
       if(ev&&ev.data&&ev.data.type==='sync'){
-        syncFromLocalStorage(false);
+        if(ev.data.db&&ev.data.db.users&&ev.data.db.users.length>0){
+          db=ev.data.db;
+          const str=JSON.stringify(db);
+          localStorage.setItem('igyr',str);
+          lastDbSnapshot=str;
+          applyDashboardSync(true);
+        } else {
+          syncFromLocalStorage(true);
+        }
       }
     };
   }
@@ -28,6 +39,8 @@ window.addEventListener('storage',(e)=>{
 function isUserEditingForm(){
   const active=document.activeElement;
   if(!active) return false;
+  // If only searching students/classes, do not block real-time background sync
+  if(active.id==='stuSearch'||active.id==='classSearch') return false;
   const tag=active.tagName;
   if(tag==='INPUT'||tag==='TEXTAREA'||tag==='SELECT') return true;
   if(active.isContentEditable) return true;
@@ -57,6 +70,17 @@ function applyDashboardSync(force=false){
     return;
   }
   pendingSyncRender=false;
+
+  // Lightweight Targeted Re-renders if container exists
+  if(tab==='Students'&&$('#stuTableContainer')){
+    renderStudentsTable($('#stuSearch')?$('#stuSearch').value:'');
+    const countHeader=document.querySelector('.card-header h3');
+    if(countHeader&&countHeader.textContent.includes('Enrolled Students')){
+      countHeader.textContent=`Enrolled Students (${mine('students').length})`;
+    }
+    return;
+  }
+
   if(typeof tab!=='undefined'&&tab&&typeof go==='function'&&typeof U!=='undefined'&&U&&typeof T!=='undefined'&&T[U.role]){
     go(tab);
   }
@@ -87,25 +111,26 @@ function syncFromLocalStorage(force=false){
 
 let syncTimer=null;
 const save=(immediateCloud=false)=>{
+  lastLocalChangeTime=Date.now();
   const str=JSON.stringify(db);
   localStorage.setItem('igyr',str);
   lastDbSnapshot=str;
   if(realtimeChannel){
-    try{realtimeChannel.postMessage({type:'sync',time:Date.now()});}catch(e){}
+    try{realtimeChannel.postMessage({type:'sync',db:db,time:Date.now()});}catch(e){}
   }
   if(immediateCloud){
     pushToTurso();
   } else {
     clearTimeout(syncTimer);
-    syncTimer=setTimeout(pushToTurso, 300);
+    syncTimer=setTimeout(pushToTurso, 200);
   }
 };
 
 async function pushToTurso(){
-  // Safety guard: Never push empty default database from a fresh mobile/browser
   if(!db || !db.users || (db.users.length <= 1 && (!db.insts || db.insts.length === 0))){
     return;
   }
+  isPushingTurso=true;
   try{
     const res=await fetch('/api/db/save',{
       method:'POST',
@@ -113,15 +138,29 @@ async function pushToTurso(){
       body:JSON.stringify(db)
     });
     if(res.ok){
+      const json=await res.json().catch(()=>({}));
+      if(json&&json.version){
+        cloudVersion=json.version;
+      }
       console.log('✓ [Turso Cloud DB] Saved successfully to Turso');
+      if(realtimeChannel){
+        try{realtimeChannel.postMessage({type:'sync',db:db,time:Date.now()});}catch(e){}
+      }
     }
   }catch(err){
     console.warn('[Turso Cloud DB] Sync warning:', err.message);
+  }finally{
+    isPushingTurso=false;
   }
 }
 
 async function fetchFromTurso(force=false){
   if(isFetchingTurso) return;
+  // Guard against race condition: never overwrite local database while a save is in-flight
+  // or within 3 seconds of a user adding/editing records locally!
+  if(!force && (isPushingTurso || (Date.now() - lastLocalChangeTime < 3000))){
+    return;
+  }
   isFetchingTurso=true;
   try{
     const res=await fetch('/api/db');
@@ -130,6 +169,15 @@ async function fetchFromTurso(force=false){
       if(json.ok&&json.data){
         const cloudDb=json.data;
         if(cloudDb.users&&cloudDb.users.length>0){
+          // If recent local changes occurred, prevent stale cloud snapshot with fewer students
+          if(!force && (Date.now() - lastLocalChangeTime < 5000)){
+            const localCount = (db.students||[]).length;
+            const cloudCount = (cloudDb.students||[]).length;
+            if(cloudCount < localCount){
+              return;
+            }
+          }
+          if(json.version) cloudVersion=json.version;
           const cloudStr=JSON.stringify(cloudDb);
           if(cloudStr!==lastDbSnapshot||force){
             db=cloudDb;
@@ -137,7 +185,7 @@ async function fetchFromTurso(force=false){
             lastDbSnapshot=cloudStr;
             applyDashboardSync(force);
             if(realtimeChannel){
-              try{realtimeChannel.postMessage({type:'sync',time:Date.now()});}catch(e){}
+              try{realtimeChannel.postMessage({type:'sync',db:db,time:Date.now()});}catch(e){}
             }
           }
         }
@@ -153,11 +201,18 @@ async function fetchFromTurso(force=false){
 // Initial fetch on page load
 fetchFromTurso(false);
 
-// Background Real-Time Polling every 3.5 seconds without page refresh
-setInterval(()=>fetchFromTurso(false), 3500);
+// Background Real-Time Polling every 1.8 seconds for instant cross-device updates
+setInterval(()=>fetchFromTurso(false), 1800);
 
-// Sync immediately when tab is refocused
-window.addEventListener('focus',()=>fetchFromTurso(false));
+// Instant Sync on window focus, mobile unlock, and page visibility changes
+window.addEventListener('focus',()=>fetchFromTurso(true));
+window.addEventListener('pageshow',()=>fetchFromTurso(true));
+document.addEventListener('visibilitychange',()=>{
+  if(document.visibilityState==='visible'){
+    fetchFromTurso(true);
+  }
+});
+window.addEventListener('online',()=>fetchFromTurso(true));
 
 const rnd=n=>Array.from({length:n},()=>String.fromCharCode(97+Math.floor(Math.random()*26))).join('');
 const today=()=>new Date().toISOString().slice(0,10);
@@ -1777,29 +1832,39 @@ function delInst(id){
 }
 
 function addClass(){
-  if(!val('cn')) return uiToast('Enter a class name', 'warning');
-  db.classes.push({inst:I(),name:val('cn')});
+  const cn=val('cn');
+  if(!cn) return uiToast('Enter a class name', 'warning');
+  db.classes.push({inst:I(),name:cn});
   save(true);
-  uiToast(`Class "${val('cn')}" added`, 'success');
+  if($('#cn')) $('#cn').value='';
+  uiToast(`Class "${cn}" added`, 'success');
   go(tab);
 }
 
 function addSub(){
-  if(!val('sn')||!val('sc')) return uiToast('Please select a class and enter subject name', 'warning');
-  db.subjects.push({inst:I(),name:val('sn'),cls:val('sc'),teacher:val('st'),fee:val('sf')||0});
+  const sn=val('sn'),sc=val('sc');
+  if(!sn||!sc) return uiToast('Please select a class and enter subject name', 'warning');
+  db.subjects.push({inst:I(),name:sn,cls:sc,teacher:val('st'),fee:val('sf')||0});
   save(true);
-  uiToast(`Subject "${val('sn')}" added`, 'success');
+  if($('#sn')) $('#sn').value='';
+  if($('#sf')) $('#sf').value='';
+  uiToast(`Subject "${sn}" added`, 'success');
   go(tab);
 }
 
 function addTeacher(){
-  if(!val('tn')) return uiToast('Enter teacher name', 'warning');
+  const tn=val('tn');
+  if(!tn) return uiToast('Enter teacher name', 'warning');
   const id=rnd(6),pw=rnd(6),email=val('te');
-  db.users.push({id,pw,role:'teacher',name:val('tn'),email:email,inst:I()});
+  db.users.push({id,pw,role:'teacher',name:tn,email:email,inst:I()});
   save(true);
-  uiAlert('Teacher Added Successfully', `Teacher Name: ${val('tn')}\nTeacher ID: ${id}\nPassword: ${pw}\nEmail: ${email||'(Not set)'}\n\nShare these credentials with the faculty member.`);
-  uiToast(`Teacher "${val('tn')}" added`, 'success');
+  if($('#tn')) $('#tn').value='';
+  if($('#te')) $('#te').value='';
   go(tab);
+  uiAlert('Teacher Added Successfully', `Teacher Name: ${tn}\nTeacher ID: ${id}\nPassword: ${pw}\nEmail: ${email||'(Not set)'}\n\nShare these credentials with the faculty member.`, ()=>{
+    applyDashboardSync(true);
+  });
+  uiToast(`Teacher "${tn}" added`, 'success');
 }
 
 function mkStudent(n,e,c,j,ft,fe){
@@ -1825,9 +1890,25 @@ function addStudent(){
   }
   const creds=mkStudent(nm,val('em'),cl,val('jd'),val('ft'),val('fe'));
   save(true);
-  uiAlert('Student Added Successfully', `Name: ${nm}\nClass: ${cl}\n${creds}\n\nStudent can now log in using these credentials.`);
+
+  // Clear input fields immediately
+  if($('#nm')) $('#nm').value='';
+  if($('#em')) $('#em').value='';
+  if($('#fe')) $('#fe').value='';
+
+  // Instantly re-render students table and counter in DOM (0ms delay)
+  renderStudentsTable($('#stuSearch')?$('#stuSearch').value:'');
+  const countHeaders = document.querySelectorAll('h3');
+  countHeaders.forEach(h => {
+    if(h.textContent.includes('Enrolled Students')){
+      h.textContent = `Enrolled Students (${mine('students').length})`;
+    }
+  });
+
+  uiAlert('Student Added Successfully', `Name: ${nm}\nClass: ${cl}\n${creds}\n\nStudent can now log in using these credentials.`, ()=>{
+    applyDashboardSync(true);
+  });
   uiToast(`Student "${nm}" enrolled!`, 'success');
-  go(tab);
 }
 
 function editStuClass(uid){
@@ -1872,6 +1953,12 @@ function delStu(id){
     save(true);
     fetch(`/api/students?uid=${encodeURIComponent(id)}`, {method:'DELETE'}).catch(()=>{});
     renderStudentsTable($('#stuSearch')?$('#stuSearch').value:'');
+    const countHeaders = document.querySelectorAll('h3');
+    countHeaders.forEach(h => {
+      if(h.textContent.includes('Enrolled Students')){
+        h.textContent = `Enrolled Students (${mine('students').length})`;
+      }
+    });
     uiToast(`Student record for ${name} deleted`, 'info');
   });
 }
@@ -1886,10 +1973,13 @@ function saveAtt(){
 
 function pay(uid){
   const a=+val('p_'+uid);
-  if(!a)return alert('Enter a valid payment amount');
+  if(!a) return uiToast('Enter a valid payment amount', 'warning');
   db.pays.push({id:'r'+Date.now(),inst:I(),uid,amt:a,date:today()});
-  save();
-  alert('Payment of ₹'+a+' received and receipt generated.');
+  save(true);
+  uiAlert('Payment Received', `Payment of ₹${a} recorded and receipt generated.`, ()=>{
+    applyDashboardSync(true);
+  });
+  uiToast('Payment of ₹'+a+' recorded!', 'success');
   go(tab);
 }
 

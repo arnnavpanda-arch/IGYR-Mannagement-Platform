@@ -3,8 +3,19 @@ import urllib.request
 import ssl
 import hashlib
 import secrets
+import time
 from typing import List, Dict, Any, Optional, Tuple
 from config import TURSO_HTTP_URL, TURSO_AUTH_TOKEN
+
+_DB_CACHE: Optional[Dict[str, Any]] = None
+_DB_CACHE_TIME: float = 0.0
+_DB_VERSION: int = int(time.time() * 1000)
+
+def invalidate_db_cache():
+    global _DB_CACHE, _DB_CACHE_TIME, _DB_VERSION
+    _DB_CACHE = None
+    _DB_CACHE_TIME = 0.0
+    _DB_VERSION = int(time.time() * 1000)
 
 def hash_password(password: str) -> str:
     """Hash password using PBKDF2-HMAC-SHA256 with 100,000 iterations and random salt."""
@@ -249,8 +260,12 @@ def init_db():
     ]
     execute_batch(statements)
 
-def get_full_db() -> Dict[str, Any]:
+def get_full_db(force_refresh: bool = False) -> Dict[str, Any]:
     """Retrieve full database in the exact structure expected by the frontend."""
+    global _DB_CACHE, _DB_CACHE_TIME, _DB_VERSION
+    now = time.time()
+    if not force_refresh and _DB_CACHE is not None and (now - _DB_CACHE_TIME) < 1.5:
+        return _DB_CACHE
     # 1. System Config (Logo)
     config_rows = query("SELECT key, value FROM system_config;")
     config_dict = {r["key"]: r["value"] for r in config_rows}
@@ -361,7 +376,7 @@ def get_full_db() -> Dict[str, Any]:
         for r in res_rows
     ]
 
-    return {
+    full_db = {
         "logo": logo,
         "users": users,
         "insts": insts,
@@ -376,6 +391,9 @@ def get_full_db() -> Dict[str, Any]:
         "exams": exams,
         "res": res
     }
+    _DB_CACHE = full_db
+    _DB_CACHE_TIME = time.time()
+    return full_db
 
 def save_full_db(data: Dict[str, Any]) -> None:
     """Synchronize complete front-end state into Turso safely."""
@@ -569,6 +587,11 @@ def save_full_db(data: Dict[str, Any]) -> None:
 
     if batch:
         execute_batch(batch)
+    invalidate_db_cache()
+    try:
+        get_full_db(force_refresh=True)
+    except Exception:
+        pass
 
 def authenticate_user(raw_id: str, pw: str) -> Optional[Dict[str, Any]]:
     """Authenticate user with ID and encrypted password verification.
