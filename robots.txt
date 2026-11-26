@@ -5,4 +5,3 @@ Disallow: /api/
 
 # Sitemap location
 Sitemap: https://igyrmannagementplatform.vercel.app/sitemap.xml
-Sitemap: https://igyr-platform.vercel.app/sitemap.xml
