@@ -49,11 +49,20 @@ class IgyrRequestHandler(SimpleHTTPRequestHandler):
                 self.headers.get("x-now-route-matches") or 
                 ""
             )
-            if forwarded and not forwarded.endswith(".py"):
+            if forwarded and not forwarded.endswith(".py") and forwarded not in ("/api/index", "/api"):
                 req_path = forwarded
 
         parsed = urlparse(req_path)
-        path = parsed.path.rstrip("/")
+        qs = parse_qs(parsed.query)
+        if "__path" in qs:
+            sub = qs["__path"][0]
+            if not sub.startswith("/"):
+                sub = "/" + sub
+            path = "/api" + sub if not sub.startswith("/api") else sub
+            path = path.rstrip("/")
+        else:
+            path = parsed.path.rstrip("/")
+
         if not path.startswith("/api") and (
             path.startswith("/auth") or 
             path.startswith("/db") or 
@@ -99,7 +108,7 @@ class IgyrRequestHandler(SimpleHTTPRequestHandler):
         query_params = parse_qs(parsed.query)
 
         # Health & Turso Status
-        if path == "/api/health" or path == "/api":
+        if path in ("/api/health", "/api", "/api/index"):
             try:
                 # ping Turso
                 res = turso_db.query("SELECT 1 as ping;")
