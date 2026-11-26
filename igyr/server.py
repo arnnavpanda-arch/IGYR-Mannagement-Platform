@@ -99,7 +99,7 @@ class IgyrRequestHandler(SimpleHTTPRequestHandler):
         query_params = parse_qs(parsed.query)
 
         # Health & Turso Status
-        if path == "/api/health":
+        if path == "/api/health" or path == "/api":
             try:
                 # ping Turso
                 res = turso_db.query("SELECT 1 as ping;")
