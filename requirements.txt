@@ -1,3 +1,5 @@
 # IGYR Smart Platform Dependencies
 # Core platform uses standard Python libraries (urllib, json, hashlib, hmac, ssl)
 # connecting directly to Turso libSQL Cloud Database over HTTPS REST API.
+requests>=2.31.0
+urllib3>=2.0.0

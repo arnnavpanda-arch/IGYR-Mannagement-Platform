@@ -1,10 +1,6 @@
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
   "cleanUrls": true,
-  "alias": [
-    "igyrmannagementplatform.vercel.app",
-    "igyr-platform.vercel.app"
-  ],
   "rewrites": [
     {
       "source": "/api/(.*)",
