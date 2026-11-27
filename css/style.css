@@ -1632,7 +1632,286 @@ header.top:not(:has(.header-right)) .header-sub {
   color: #16a34a;
 }
 
+/* ==========================================================================
+   Mobile-Optimized Fee Collection, Ledger & Receipt Styles
+   ========================================================================== */
+
+.mobile-table-hint {
+  display: none;
+  font-size: 11.5px;
+  color: #1d4ed8;
+  background: #eff6ff;
+  border: 1px dashed #bfdbfe;
+  padding: 6px 10px;
+  border-radius: 6px;
+  margin-bottom: 8px;
+  font-weight: 600;
+  align-items: center;
+  gap: 6px;
+}
+
+.fees-main-table {
+  min-width: 780px;
+}
+
+.receipts-main-table {
+  min-width: 600px;
+}
+
+.fee-bill-controls {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+  gap: 12px;
+}
+
+.fee-summary-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 14px;
+  margin: 8px 0 20px;
+}
+
+.fee-summary-card {
+  background: #f8fafc;
+  padding: 16px 14px;
+  border-radius: 12px;
+  border: 1px solid #e2e8f0;
+  text-align: center;
+  box-shadow: 0 2px 6px rgba(0,0,0,0.02);
+}
+
+.fee-card-title {
+  font-size: 12px;
+  color: #64748b;
+  font-weight: 600;
+  margin-bottom: 4px;
+}
+
+.fee-card-val {
+  font-size: 24px;
+  font-weight: 800;
+  letter-spacing: -0.5px;
+}
+
+.ledger-modal-box {
+  background: #ffffff;
+  border-radius: 14px;
+  padding: 24px;
+  max-width: 850px;
+  width: 100%;
+  box-shadow: 0 25px 50px -12px rgba(0,0,0,0.25);
+  position: relative;
+  max-height: 90vh;
+  overflow-y: auto;
+  border: 1px solid #e2e8f0;
+  box-sizing: border-box;
+}
+
+.ledger-add-grid {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+  align-items: flex-end;
+}
+
+/* In-App Interactive Receipt Modal */
+.receipt-modal-overlay {
+  position: fixed !important;
+  top: 0 !important;
+  left: 0 !important;
+  right: 0 !important;
+  bottom: 0 !important;
+  width: 100vw !important;
+  height: 100vh !important;
+  background: rgba(15,23,42,0.75) !important;
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  z-index: 999999999 !important;
+  padding: 16px !important;
+  box-sizing: border-box !important;
+  margin: 0 !important;
+  overflow-y: auto !important;
+}
+
+.receipt-modal-container {
+  background: transparent;
+  max-width: 650px;
+  width: 100%;
+  margin: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.receipt-top-actions {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 10px;
+  background: #1e293b;
+  padding: 10px 16px;
+  border-radius: 12px;
+  color: #ffffff;
+}
+
+.receipt-card-box {
+  background: #ffffff;
+  border: 2px solid #cbd5e1;
+  border-radius: 16px;
+  padding: 24px 22px;
+  box-shadow: 0 20px 40px rgba(0,0,0,0.2);
+  box-sizing: border-box;
+  width: 100%;
+  color: #0f172a;
+}
+
+/* Mobile Adjustments */
+@media (max-width: 768px) {
+  .mobile-table-hint {
+    display: flex !important;
+  }
+
+  .fee-summary-grid {
+    grid-template-columns: 1fr !important;
+    gap: 8px !important;
+  }
+
+  .fee-summary-card {
+    padding: 12px 14px !important;
+    display: flex !important;
+    justify-content: space-between !important;
+    align-items: center !important;
+    text-align: left !important;
+  }
+
+  .fee-card-title {
+    margin-bottom: 0 !important;
+    font-size: 13px !important;
+  }
+
+  .fee-card-val {
+    font-size: 20px !important;
+  }
+
+  .fee-bill-controls {
+    grid-template-columns: 1fr !important;
+    gap: 10px !important;
+  }
+
+  .fee-bill-controls select,
+  .fee-bill-controls input {
+    width: 100% !important;
+  }
+
+  #customModalOverlay {
+    padding: 8px !important;
+  }
+
+  .ledger-modal-box {
+    padding: 16px 12px !important;
+    border-radius: 12px !important;
+    max-height: 94vh !important;
+  }
+
+  .ledger-add-grid {
+    display: grid !important;
+    grid-template-columns: 1fr 1fr !important;
+    gap: 8px !important;
+  }
+
+  .ledger-add-grid > div {
+    width: 100% !important;
+  }
+
+  .ledger-add-grid input,
+  .ledger-add-grid select {
+    width: 100% !important;
+    box-sizing: border-box !important;
+  }
+
+  .ledger-add-grid button {
+    grid-column: 1 / -1 !important;
+    width: 100% !important;
+    margin-top: 4px !important;
+    padding: 10px !important;
+  }
+
+  .dues-table {
+    min-width: 520px !important;
+    font-size: 12px !important;
+  }
+
+  .dues-table th {
+    padding: 8px 10px !important;
+    font-size: 11.5px !important;
+  }
+
+  .dues-table td {
+    padding: 7px 8px !important;
+    font-size: 12px !important;
+  }
+
+  .receipt-modal-overlay {
+    padding: 8px !important;
+  }
+
+  .receipt-card-box {
+    padding: 18px 14px !important;
+    border-radius: 12px !important;
+  }
+
+  .receipt-top-actions {
+    padding: 8px 12px !important;
+    flex-wrap: wrap !important;
+  }
+}
+
 @media print{
-  .top,.sidebar,nav,button,.noprint,.welcome-marquee-bar,.fullscreen-welcome,#toastContainer,#customModalOverlay{display:none!important}
-  .dash-layout{display:block}
+  body:not(.receipt-printing) .top,
+  body:not(.receipt-printing) .sidebar,
+  body:not(.receipt-printing) nav,
+  body:not(.receipt-printing) button,
+  body:not(.receipt-printing) .noprint,
+  body:not(.receipt-printing) .welcome-marquee-bar,
+  body:not(.receipt-printing) .fullscreen-welcome,
+  body:not(.receipt-printing) #toastContainer,
+  body:not(.receipt-printing) #customModalOverlay {
+    display: none !important;
+  }
+  .dash-layout { display: block; }
+
+  /* In-modal receipt printing */
+  body.receipt-printing .top,
+  body.receipt-printing .sidebar,
+  body.receipt-printing nav,
+  body.receipt-printing .main-content,
+  body.receipt-printing .welcome-marquee-bar,
+  body.receipt-printing .fullscreen-welcome,
+  body.receipt-printing #toastContainer,
+  body.receipt-printing #customModalOverlay,
+  body.receipt-printing .receipt-no-print {
+    display: none !important;
+  }
+  body.receipt-printing #receiptModalOverlay {
+    position: static !important;
+    background: #ffffff !important;
+    padding: 0 !important;
+    display: block !important;
+  }
+  body.receipt-printing .receipt-modal-container {
+    max-width: 100% !important;
+    margin: 0 !important;
+  }
+  body.receipt-printing .receipt-card-box {
+    width: 100% !important;
+    max-width: 100% !important;
+    box-shadow: none !important;
+    border: 2px solid #1e3a8a !important;
+    padding: 10mm 15mm !important;
+    border-radius: 0 !important;
+    page-break-inside: avoid;
+  }
 }

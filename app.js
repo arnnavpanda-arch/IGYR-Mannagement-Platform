@@ -1155,6 +1155,7 @@ function renderStudentLedgerTable(s){
   });
 
   return `
+    <div class="mobile-table-hint">👉 Swipe table left & right to view all months and dues</div>
     <div class="dues-table-wrap">
       <table class="dues-table">
         <thead>
@@ -1232,21 +1233,21 @@ function viewStudentLedgerModal(uid){
   if(!s) return uiToast('Student not found', 'error');
   const overlay = document.createElement('div');
   overlay.id = 'customModalOverlay';
-  overlay.style.cssText = 'position:fixed!important;top:0!important;left:0!important;right:0!important;bottom:0!important;width:100vw!important;height:100vh!important;background:rgba(15,23,42,0.7)!important;backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px);display:flex!important;align-items:center!important;justify-content:center!important;z-index:999999999!important;padding:20px!important;box-sizing:border-box!important;margin:0!important;';
+  overlay.style.cssText = 'position:fixed!important;top:0!important;left:0!important;right:0!important;bottom:0!important;width:100vw!important;height:100vh!important;background:rgba(15,23,42,0.7)!important;backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px);display:flex!important;align-items:center!important;justify-content:center!important;z-index:999999999!important;padding:12px!important;box-sizing:border-box!important;margin:0!important;';
 
   overlay.innerHTML = `
-    <div style="background:#ffffff;border-radius:12px;padding:24px;max-width:850px;width:100%;box-shadow:0 25px 50px -12px rgba(0,0,0,0.25);position:relative;max-height:90vh;overflow-y:auto;border:1px solid #e2e8f0" onclick="event.stopPropagation()">
-      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;border-bottom:1px solid #e2e8f0;padding-bottom:12px">
+    <div class="ledger-modal-box" onclick="event.stopPropagation()">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;border-bottom:1px solid #e2e8f0;padding-bottom:12px;gap:10px">
         <div>
           <h3 style="margin:0;color:#0f172a;font-size:18px">🧾 Month-by-Month Fee Ledger</h3>
           <p style="margin:4px 0 0;font-size:13px;color:#64748b">Student: <b>${esc(s.name)}</b> (${esc(s.uid)}) • Class: <b>${esc(s.cls||'General')}</b> • Fee: ₹${s.fee||500}</p>
         </div>
-        <button type="button" onclick="closeCustomModal()" style="background:#f1f5f9;color:#64748b;border:0;border-radius:50%;width:32px;height:32px;display:flex;align-items:center;justify-content:center;cursor:pointer;font-size:16px">✕</button>
+        <button type="button" onclick="closeCustomModal()" style="background:#f1f5f9;color:#64748b;border:0;border-radius:50%;width:32px;height:32px;min-width:32px;display:flex;align-items:center;justify-content:center;cursor:pointer;font-size:16px;flex-shrink:0">✕</button>
       </div>
 
-      <div style="background:#f0fdf4;border:1px solid #bbf7d0;border-radius:8px;padding:12px 16px;margin-bottom:16px">
+      <div style="background:#f0fdf4;border:1px solid #bbf7d0;border-radius:10px;padding:12px 14px;margin-bottom:16px">
         <div style="font-weight:700;font-size:13px;color:#166534;margin-bottom:8px">➕ Add Due Month for this Student (One-by-One)</div>
-        <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:flex-end">
+        <div class="ledger-add-grid">
           <div>
             <label style="font-size:11px;font-weight:600;color:#166534;display:block;margin-bottom:4px">Month</label>
             <select id="ledgerAddMonth" style="margin:0;padding:6px 10px;font-size:13px;border-color:#86efac;background:#ffffff">
@@ -1261,13 +1262,13 @@ function viewStudentLedgerModal(uid){
           </div>
           <div>
             <label style="font-size:11px;font-weight:600;color:#166534;display:block;margin-bottom:4px">Amount (₹)</label>
-            <input id="ledgerAddAmt" type="number" value="${s.fee || 500}" style="margin:0;width:95px;padding:6px 10px;font-size:13px;border-color:#86efac;background:#ffffff">
+            <input id="ledgerAddAmt" type="number" value="${s.fee || 500}" style="margin:0;padding:6px 10px;font-size:13px;border-color:#86efac;background:#ffffff">
           </div>
           <div>
             <label style="font-size:11px;font-weight:600;color:#166534;display:block;margin-bottom:4px">Billing Date</label>
             <input id="ledgerAddDate" type="date" value="${today()}" style="margin:0;padding:6px 10px;font-size:13px;border-color:#86efac;background:#ffffff">
           </div>
-          <button type="button" onclick="addSingleStudentBill('${esc(s.uid)}')" style="background:#16a34a;color:#ffffff;padding:7px 14px;font-size:13px;font-weight:700;border:0;border-radius:6px;cursor:pointer;white-space:nowrap">Add Month</button>
+          <button type="button" onclick="addSingleStudentBill('${esc(s.uid)}')" style="background:#16a34a;color:#ffffff;padding:8px 16px;font-size:13px;font-weight:700;border:0;border-radius:6px;cursor:pointer;white-space:nowrap">Add Month</button>
         </div>
       </div>
 
@@ -1336,22 +1337,25 @@ function generateMonthlyBill(){
 }
 
 function buildFeesTable(studentsList){
-  return tbl(['Student Name','Class','Fee Plan','Total Billed','Total Paid','Pending Due','Record Payment','Fee Schedule'], studentsList.map(s => {
-    const f = feeInfo(s);
-    return [
-      `<b>${esc(s.name)}</b><div style="font-size:11px;color:#64748b">${esc(s.uid)}</div>`,
-      `<span class="pill">${esc(s.cls)||'-'}</span>`,
-      `<span class="pill purple">${s.feeType} / ₹${s.fee||0}</span>`,
-      '₹' + f.total,
-      `<span style="color:#10b981;font-weight:700">₹${f.paid}</span>`,
-      `<span class="${f.due ? 'due' : 'ok'}">₹${f.due}</span>`,
-      `<div style="display:flex;gap:6px;align-items:center">
-        <input id="p_${s.uid}" type="number" placeholder="₹" style="width:75px;margin:0">
-        <button onclick="pay('${s.uid}')" style="padding:6px 10px;font-size:12px">Collect</button>
-      </div>`,
-      `<button type="button" class="secondary" onclick="viewStudentLedgerModal('${esc(s.uid)}')" style="padding:6px 10px;font-size:12px;white-space:nowrap" title="View Month-by-Month Dues Table">📋 View Ledger</button>`
-    ];
-  }));
+  return `
+    <div class="mobile-table-hint">👉 Swipe table left & right to view all student fee columns</div>
+    ${tbl(['Student Name','Class','Fee Plan','Total Billed','Total Paid','Pending Due','Record Payment','Fee Schedule'], studentsList.map(s => {
+      const f = feeInfo(s);
+      return [
+        `<b>${esc(s.name)}</b><div style="font-size:11px;color:#64748b">${esc(s.uid)}</div>`,
+        `<span class="pill">${esc(s.cls)||'-'}</span>`,
+        `<span class="pill purple">${s.feeType} / ₹${s.fee||0}</span>`,
+        '₹' + f.total,
+        `<span style="color:#10b981;font-weight:700">₹${f.paid}</span>`,
+        `<span class="${f.due ? 'due' : 'ok'}">₹${f.due}</span>`,
+        `<div style="display:flex;gap:6px;align-items:center;min-width:145px">
+          <input id="p_${s.uid}" type="number" placeholder="₹" style="width:75px;margin:0;padding:6px 8px;font-size:13px">
+          <button onclick="pay('${s.uid}')" style="padding:6px 12px;font-size:12px;white-space:nowrap">Collect</button>
+        </div>`,
+        `<button type="button" class="secondary" onclick="viewStudentLedgerModal('${esc(s.uid)}')" style="padding:6px 10px;font-size:12px;white-space:nowrap" title="View Month-by-Month Dues Table">📋 Ledger</button>`
+      ];
+    }), 'fees-main-table')}
+  `;
 }
 
 function renderFeesTable(filterText){
@@ -1363,17 +1367,20 @@ function renderFeesTable(filterText){
 }
 
 function buildReceiptsHistoryTable(paysList){
-  return tbl(['Receipt No', 'Payment Date', 'Student Name', 'Class', 'Amount Paid', 'Official Receipt'], paysList.slice().reverse().map(p => {
-    const st = sOf(p.uid) || { name: 'Student', cls: '-' };
-    return [
-      `<b style="font-family:monospace;color:#1e3a8a;font-size:13px">${esc(p.id)}</b>`,
-      esc(p.date),
-      `<b>${esc(st.name)}</b><div style="font-size:11px;color:#64748b">${esc(p.uid)}</div>`,
-      `<span class="pill">${esc(st.cls||'General')}</span>`,
-      `<b style="color:#059669;font-size:14px">₹${p.amt}</b>`,
-      `<button type="button" class="secondary" onclick='receipt("${esc(p.id)}")' style="padding:5px 12px;font-size:12px;white-space:nowrap">🖨️ View A4 Receipt</button>`
-    ];
-  }));
+  return `
+    <div class="mobile-table-hint">👉 Swipe table left & right to view all payment receipts</div>
+    ${tbl(['Receipt No', 'Payment Date', 'Student Name', 'Class', 'Amount Paid', 'Official Receipt'], paysList.slice().reverse().map(p => {
+      const st = sOf(p.uid) || { name: 'Student', cls: '-' };
+      return [
+        `<b style="font-family:monospace;color:#1e3a8a;font-size:13px">${esc(p.id)}</b>`,
+        esc(p.date),
+        `<b>${esc(st.name)}</b><div style="font-size:11px;color:#64748b">${esc(p.uid)}</div>`,
+        `<span class="pill">${esc(st.cls||'General')}</span>`,
+        `<b style="color:#059669;font-size:14px">₹${p.amt}</b>`,
+        `<button type="button" class="secondary" onclick='receipt("${esc(p.id)}")' style="padding:6px 12px;font-size:12px;white-space:nowrap;display:inline-flex;align-items:center;gap:4px">🧾 View Receipt</button>`
+      ];
+    }), 'receipts-main-table')}
+  `;
 }
 
 function renderReceiptsHistoryTable(filterText){
@@ -1390,7 +1397,7 @@ function renderReceiptsHistoryTable(filterText){
   if(container) container.innerHTML = buildReceiptsHistoryTable(filtered);
 }
 
-const tbl=(h,rows)=>`<div class="table-wrap"><table><thead><tr>${h.map(x=>`<th>${x}</th>`).join('')}</tr></thead><tbody>${rows.map(r=>`<tr>${r.map(c=>`<td>${c}</td>`).join('')}</tr>`).join('')||`<tr><td colspan="${h.length}" class="empty-state"><div class="empty-icon">📂</div><div>No records found</div></td></tr>`}</tbody></table></div>`;
+const tbl=(h,rows,cls='')=>`<div class="table-wrap"><table class="${cls}"><thead><tr>${h.map(x=>`<th>${x}</th>`).join('')}</tr></thead><tbody>${rows.map(r=>`<tr>${r.map(c=>`<td>${c}</td>`).join('')}</tr>`).join('')||`<tr><td colspan="${h.length}" class="empty-state"><div class="empty-icon">📂</div><div>No records found</div></td></tr>`}</tbody></table></div>`;
 const classOpts=()=>mine('classes').map(c=>`<option value="${esc(c.name)}">${esc(c.name)}</option>`).join('');
 const DAYS=['Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];
 const WEEKDAYS=['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];
@@ -1597,7 +1604,7 @@ institute:{
       <h3>📅 Add / Apply Monthly Fee Bill</h3>
     </div>
     <p style="color:#64748b;font-size:13px;margin:0 0 14px">Select Month, Year, and Target. Pressing "Apply Monthly Dues" automatically adds the bill to all matching student dashboards and fee schedules.</p>
-    <div class="grid" style="grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:12px">
+    <div class="fee-bill-controls">
       <div>
         <label class="form-label">Due Month</label>
         <select id="billMonth">
@@ -1631,7 +1638,7 @@ institute:{
         <input id="billDate" type="date" value="${today()}">
       </div>
     </div>
-    <button type="button" onclick="generateMonthlyBill()" style="margin-top:12px">⚡ Apply Monthly Dues</button>
+    <button type="button" onclick="generateMonthlyBill()" style="margin-top:14px;padding:10px 22px">⚡ Apply Monthly Dues</button>
   </div>
   <div class=card>
     <div class="card-header">
@@ -1772,18 +1779,18 @@ student:{
   return `${studentHeader()}
   <div class=card>
    <div class="card-header"><h3>🧾 Fee Status & Receipts</h3></div>
-   <div style="display:flex;gap:16px;margin:8px 0 20px;flex-wrap:wrap">
-     <div style="flex:1;min-width:140px;background:#f8fafc;padding:14px;border-radius:8px;border:1px solid #e2e8f0;text-align:center">
-       <div style="font-size:12px;color:#64748b">Total Billed Fee</div>
-       <div style="font-size:22px;font-weight:800;color:#0f172a">₹${f.total}</div>
+   <div class="fee-summary-grid">
+     <div class="fee-summary-card">
+       <div class="fee-card-title">Total Billed Fee</div>
+       <div class="fee-card-val" style="color:#0f172a">₹${f.total}</div>
      </div>
-     <div style="flex:1;min-width:140px;background:#ecfdf5;padding:14px;border-radius:8px;border:1px solid #a7f3d0;text-align:center">
-       <div style="font-size:12px;color:#065f46">Amount Paid</div>
-       <div style="font-size:22px;font-weight:800;color:#059669">₹${f.paid}</div>
+     <div class="fee-summary-card" style="background:#ecfdf5;border-color:#a7f3d0">
+       <div class="fee-card-title" style="color:#065f46">Amount Paid</div>
+       <div class="fee-card-val" style="color:#059669">₹${f.paid}</div>
      </div>
-     <div style="flex:1;min-width:140px;background:${f.due>0?'#fef2f2':'#ecfdf5'};padding:14px;border-radius:8px;border:1px solid ${f.due>0?'#fecaca':'#a7f3d0'};text-align:center">
-       <div style="font-size:12px;color:${f.due>0?'#991b1b':'#065f46'}">Pending Balance Due</div>
-       <div style="font-size:22px;font-weight:800;color:${f.due>0?'#dc2626':'#059669'}">₹${f.due}</div>
+     <div class="fee-summary-card" style="background:${f.due>0?'#fef2f2':'#ecfdf5'};border-color:${f.due>0?'#fecaca':'#a7f3d0'}">
+       <div class="fee-card-title" style="color:${f.due>0?'#991b1b':'#065f46'}">Pending Balance Due</div>
+       <div class="fee-card-val" style="color:${f.due>0?'#dc2626':'#059669'}">₹${f.due}</div>
      </div>
    </div>
    <div class="card-header" style="margin-top:20px">
@@ -1793,12 +1800,13 @@ student:{
    <div class="card-header" style="margin-top:24px">
      <h4 style="margin:0;font-size:16px;color:#1e3a8a">💳 Payment Receipts History</h4>
    </div>
+   <div class="mobile-table-hint">👉 Swipe table left & right to view payment receipts</div>
    ${tbl(['Receipt No','Payment Date','Amount Paid','Official Receipt'],((db&&db.pays)?db.pays:[]).filter(p=>p.uid===(U&&U.id)).slice().reverse().map(p=>[
-     `<b style="font-family:monospace;color:#1e3a8a">${esc(p.id)}</b>`,
+     `<b style="font-family:monospace;color:#1e3a8a;font-size:13px">${esc(p.id)}</b>`,
      esc(p.date),
-     `<b style="color:#059669">₹${p.amt}</b>`,
-     `<button type="button" class="secondary" onclick='receipt("${esc(p.id)}")' style="padding:5px 12px;font-size:12px;white-space:nowrap">🖨️ Download A4 Receipt</button>`
-   ]))}
+     `<b style="color:#059669;font-size:14px">₹${p.amt}</b>`,
+     `<button type="button" class="secondary" onclick='receipt("${esc(p.id)}")' style="padding:6px 12px;font-size:12px;white-space:nowrap;display:inline-flex;align-items:center;gap:4px">🧾 View Receipt</button>`
+   ]), 'receipts-main-table')}
   </div>`},
 
  'Attendance':()=>{
@@ -3565,7 +3573,23 @@ function saveProfile(){
   ($('#ph')&&$('#ph').files[0]) ? readAndResizeImage($('#ph').files[0], 400, 400, d=>fin(d)) : fin('');
 }
 
-function receipt(id){
+function closeReceiptModal(){
+  const el = document.getElementById('receiptModalOverlay');
+  if(el) el.remove();
+}
+window.closeReceiptModal = closeReceiptModal;
+
+function printReceiptFromModal(){
+  document.body.classList.add('receipt-printing');
+  window.print();
+  window.addEventListener('afterprint', () => {
+    document.body.classList.remove('receipt-printing');
+  }, { once: true });
+  setTimeout(() => document.body.classList.remove('receipt-printing'), 2000);
+}
+window.printReceiptFromModal = printReceiptFromModal;
+
+function openReceiptWindow(id){
   const p = ((db && db.pays) ? db.pays : []).find(x => x.id === id);
   if(!p) return uiToast('Receipt not found', 'error');
   const s = sOf(p.uid) || { name: 'Student', uid: p.uid, cls: 'General', photo: '' };
@@ -3575,14 +3599,16 @@ function receipt(id){
   const studentPhoto = s.photo || '';
 
   const w = window.open('', '_blank');
-  if(!w) return uiToast('Please allow popups to open receipt', 'warning');
+  if(!w){
+    return uiToast('Popup blocked by browser. You can print directly from the receipt preview.', 'info');
+  }
 
   w.document.write(`<!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="utf-8">
   <title>Payment Receipt - ${p.id}</title>
-  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
   <style>
     @page {
       size: A4 portrait;
@@ -3753,6 +3779,92 @@ function receipt(id){
       justify-content: space-between;
       align-items: flex-end;
     }
+
+    /* Mobile Responsive Styles */
+    @media screen and (max-width: 768px) {
+      body {
+        padding: 12px 8px !important;
+        background: #f8fafc !important;
+      }
+      .no-print-bar {
+        flex-direction: column !important;
+        gap: 8px !important;
+        margin-bottom: 12px !important;
+      }
+      .print-btn, .close-btn {
+        width: 100% !important;
+        justify-content: center !important;
+        text-align: center !important;
+        padding: 12px 16px !important;
+        font-size: 15px !important;
+      }
+      .a4-page {
+        width: 100% !important;
+        min-height: auto !important;
+        padding: 16px 14px !important;
+        border-radius: 12px !important;
+        box-shadow: 0 4px 16px rgba(0,0,0,0.06) !important;
+      }
+      .inst-header {
+        flex-direction: column !important;
+        text-align: center !important;
+        gap: 8px !important;
+      }
+      .inst-header > div:last-child {
+        text-align: center !important;
+      }
+      .inst-title {
+        font-size: 20px !important;
+      }
+      .student-center-block {
+        margin: 16px 0 !important;
+        padding: 14px 10px !important;
+      }
+      .student-avatar, .student-avatar-placeholder {
+        width: 100px !important;
+        height: 100px !important;
+        font-size: 46px !important;
+      }
+      .receipt-data-table {
+        margin: 12px 0 16px !important;
+        font-size: 13.5px !important;
+      }
+      .receipt-data-table td {
+        padding: 9px 8px !important;
+      }
+      .receipt-data-table td.label-cell {
+        width: 40% !important;
+      }
+      .receipt-data-table td.val-cell {
+        width: 60% !important;
+        word-break: break-word !important;
+      }
+      .amount-box {
+        padding: 14px 16px !important;
+        flex-direction: column !important;
+        gap: 12px !important;
+        text-align: center !important;
+      }
+      .amount-box > div:first-child {
+        text-align: center !important;
+      }
+      .paid-stamp {
+        transform: none !important;
+        font-size: 15px !important;
+        padding: 5px 16px !important;
+      }
+      .receipt-footer {
+        flex-direction: column !important;
+        gap: 18px !important;
+        text-align: center !important;
+        align-items: center !important;
+      }
+      .receipt-footer > div {
+        max-width: 100% !important;
+        text-align: center !important;
+      }
+    }
+
     @media print {
       body {
         background: #ffffff !important;
@@ -3772,6 +3884,22 @@ function receipt(id){
         border-radius: 0 !important;
         page-break-inside: avoid;
       }
+      .inst-header {
+        flex-direction: row !important;
+        text-align: left !important;
+      }
+      .inst-header > div:last-child {
+        text-align: right !important;
+      }
+      .amount-box {
+        flex-direction: row !important;
+        text-align: left !important;
+      }
+      .receipt-footer {
+        flex-direction: row !important;
+        text-align: left !important;
+        align-items: flex-end !important;
+      }
     }
   </style>
 </head>
@@ -3789,8 +3917,8 @@ function receipt(id){
           <div style="font-size:13px;color:#64748b;font-weight:500">Official Fee Payment Receipt • Academic A4 Copy</div>
         </div>
         <div style="text-align:right">
-          ${instLogo ? `<img src="${instLogo}" alt="Logo" style="height:55px;max-width:140px;object-fit:contain;margin-bottom:4px;display:block">` : `<div style="font-size:32px">🏛️</div>`}
-          <span class="receipt-badge">Official Record</span>
+          ${instLogo ? `<img src="${instLogo}" alt="Logo" style="height:55px;max-width:140px;object-fit:contain;margin-bottom:4px;display:inline-block">` : `<div style="font-size:32px">🏛️</div>`}
+          <div><span class="receipt-badge">Official Record</span></div>
         </div>
       </div>
 
@@ -3829,7 +3957,7 @@ function receipt(id){
         </tr>
         <tr>
           <td class="label-cell">Status:</td>
-          <td class="val-cell"><span style="color:#16a34a;font-weight:800">✅ PAYMENT RECEIVED & VERIFIED</span></td>
+          <td class="val-cell"><span style="color:#16a34a;font-weight:800">✅ PAYMENT RECEIVED &amp; VERIFIED</span></td>
         </tr>
       </table>
 
@@ -3861,6 +3989,126 @@ function receipt(id){
 </html>`);
   w.document.close();
 }
+window.openReceiptWindow = openReceiptWindow;
+
+function receipt(id){
+  const p = ((db && db.pays) ? db.pays : []).find(x => x.id === id);
+  if(!p) return uiToast('Receipt not found', 'error');
+  const s = sOf(p.uid) || { name: 'Student', uid: p.uid, cls: 'General', photo: '' };
+  const i = ((db && db.insts) ? db.insts : []).find(x => x.id === p.inst || x.id === (s ? s.inst : '')) || {};
+  const instName = (i && i.name) || 'IGYR Smart Platform';
+  const instLogo = (i && i.logo) || '';
+  const studentPhoto = s.photo || '';
+
+  closeReceiptModal();
+
+  const overlay = document.createElement('div');
+  overlay.id = 'receiptModalOverlay';
+  overlay.className = 'receipt-modal-overlay';
+  overlay.onclick = (e) => {
+    if(e.target === overlay) closeReceiptModal();
+  };
+
+  overlay.innerHTML = `
+    <div class="receipt-modal-container" onclick="event.stopPropagation()">
+      <div class="receipt-top-actions receipt-no-print">
+        <div style="display:flex;align-items:center;gap:8px">
+          <span style="font-size:18px">🧾</span>
+          <span style="font-weight:700;font-size:14px">Official Fee Payment Receipt</span>
+        </div>
+        <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+          <button type="button" onclick="printReceiptFromModal()" style="background:#2563eb;color:#ffffff;border:0;padding:6px 14px;border-radius:6px;font-size:13px;font-weight:700;cursor:pointer;display:inline-flex;align-items:center;gap:6px">🖨️ Print / Save PDF</button>
+          <button type="button" onclick="openReceiptWindow('${esc(p.id)}')" style="background:#334155;color:#ffffff;border:0;padding:6px 12px;border-radius:6px;font-size:13px;font-weight:600;cursor:pointer" title="Open in dedicated tab">↗️ Full Tab</button>
+          <button type="button" onclick="closeReceiptModal()" style="background:#475569;color:#ffffff;border:0;border-radius:50%;width:28px;height:28px;display:flex;align-items:center;justify-content:center;cursor:pointer;font-size:14px">✕</button>
+        </div>
+      </div>
+
+      <div class="receipt-card-box receipt-printable-content">
+        <!-- Institute Header -->
+        <div style="border-bottom:3px double #2563eb;padding-bottom:14px;display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap">
+          <div>
+            <h2 style="font-size:20px;font-weight:900;color:#1e3a8a;margin:0 0 2px;letter-spacing:-0.5px">${esc(instName)}</h2>
+            <div style="font-size:12px;color:#64748b;font-weight:500">Official Fee Payment Receipt • Academic Copy</div>
+          </div>
+          <div style="text-align:right;flex-shrink:0">
+            ${instLogo ? `<img src="${instLogo}" alt="Logo" style="height:48px;max-width:120px;object-fit:contain;margin-bottom:3px;display:inline-block">` : `<div style="font-size:28px">🏛️</div>`}
+            <div><span style="display:inline-block;background:#eff6ff;color:#1d4ed8;border:1px solid #bfdbfe;padding:2px 10px;border-radius:14px;font-size:11px;font-weight:700;text-transform:uppercase">Official Record</span></div>
+          </div>
+        </div>
+
+        <!-- Student Photo Centered -->
+        <div style="text-align:center;margin:18px 0 16px;padding:14px 10px;background:linear-gradient(180deg,#f0f7ff 0%,#ffffff 100%);border-radius:14px;border:1px solid #e0e7ff">
+          ${studentPhoto ? `
+            <img src="${studentPhoto}" style="width:105px;height:105px;border-radius:50%;object-fit:cover;border:4px solid #2563eb;box-shadow:0 8px 22px rgba(37,99,235,0.22);margin:0 auto 10px;display:block" alt="Student Photo">
+          ` : `
+            <div style="width:105px;height:105px;border-radius:50%;background:#e0e7ff;border:4px solid #2563eb;display:flex;align-items:center;justify-content:center;font-size:50px;color:#3b82f6;margin:0 auto 10px;box-shadow:0 8px 22px rgba(37,99,235,0.22)">👤</div>
+          `}
+          <div style="font-size:19px;font-weight:900;color:#1e3a8a;margin-bottom:2px">${esc(s.name)}</div>
+          <div style="font-size:12.5px;color:#64748b;font-weight:600">Student ID: <span style="color:#0f172a;font-family:monospace;font-weight:700">${esc(s.uid)}</span></div>
+        </div>
+
+        <!-- Details Table -->
+        <table style="width:100%;border-collapse:collapse;margin:12px 0 16px;font-size:13.5px">
+          <tr>
+            <td style="padding:9px 10px;border-bottom:1px solid #e2e8f0;color:#64748b;font-weight:600;width:38%">Receipt No:</td>
+            <td style="padding:9px 10px;border-bottom:1px solid #e2e8f0;font-family:monospace;font-weight:800;color:#1e3a8a;font-size:14.5px">${esc(p.id)}</td>
+          </tr>
+          <tr>
+            <td style="padding:9px 10px;border-bottom:1px solid #e2e8f0;color:#64748b;font-weight:600">Payment Date:</td>
+            <td style="padding:9px 10px;border-bottom:1px solid #e2e8f0;font-weight:700;color:#0f172a">${esc(p.date)}</td>
+          </tr>
+          <tr>
+            <td style="padding:9px 10px;border-bottom:1px solid #e2e8f0;color:#64748b;font-weight:600">Student:</td>
+            <td style="padding:9px 10px;border-bottom:1px solid #e2e8f0;font-weight:700;color:#0f172a">${esc(s.name)}</td>
+          </tr>
+          <tr>
+            <td style="padding:9px 10px;border-bottom:1px solid #e2e8f0;color:#64748b;font-weight:600">Class:</td>
+            <td style="padding:9px 10px;border-bottom:1px solid #e2e8f0;font-weight:700"><span style="background:#f1f5f9;padding:3px 8px;border-radius:6px;border:1px solid #cbd5e1;font-size:12.5px">${esc(s.cls || 'General')}</span></td>
+          </tr>
+          <tr>
+            <td style="padding:9px 10px;border-bottom:1px solid #e2e8f0;color:#64748b;font-weight:600">Institute:</td>
+            <td style="padding:9px 10px;border-bottom:1px solid #e2e8f0;font-weight:700;color:#0f172a">${esc(instName)}</td>
+          </tr>
+          <tr>
+            <td style="padding:9px 10px;border-bottom:1px solid #e2e8f0;color:#64748b;font-weight:600">Status:</td>
+            <td style="padding:9px 10px;border-bottom:1px solid #e2e8f0"><span style="color:#16a34a;font-weight:800;font-size:13px">✅ PAYMENT RECEIVED &amp; VERIFIED</span></td>
+          </tr>
+        </table>
+
+        <!-- Amount Box -->
+        <div style="background:#ecfdf5;border:2px dashed #059669;border-radius:12px;padding:14px 18px;display:flex;justify-content:space-between;align-items:center;margin:12px 0 16px;gap:12px;flex-wrap:wrap">
+          <div>
+            <div style="font-size:12px;font-weight:700;color:#065f46;text-transform:uppercase;letter-spacing:0.5px">Amount Paid:</div>
+            <div style="font-size:28px;font-weight:900;color:#047857;margin-top:2px">₹${p.amt}</div>
+          </div>
+          <div>
+            <div style="display:inline-block;border:3px solid #16a34a;color:#16a34a;padding:5px 16px;font-size:15px;font-weight:900;border-radius:8px;letter-spacing:2px">PAID</div>
+          </div>
+        </div>
+
+        <!-- Footer -->
+        <div style="border-top:1px solid #e2e8f0;padding-top:14px;margin-top:18px;display:flex;justify-content:space-between;align-items:flex-end;gap:14px;flex-wrap:wrap">
+          <div style="font-size:11px;color:#94a3b8;max-width:320px;line-height:1.5">
+            <b>Notice:</b> This receipt is an official system-generated record of payment issued by ${esc(instName)}. Retain for verification.
+          </div>
+          <div style="text-align:center;min-width:160px;margin-left:auto">
+            <div style="border-bottom:1px solid #94a3b8;height:30px;margin-bottom:4px"></div>
+            <div style="font-size:12px;font-weight:700;color:#334155">Authorized Signature</div>
+            <div style="font-size:11px;color:#64748b">${esc(instName)}</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Mobile quick-close button -->
+      <div class="receipt-no-print" style="text-align:center;margin-top:4px">
+        <button type="button" onclick="closeReceiptModal()" style="background:#ffffff;color:#334155;border:1px solid #cbd5e1;padding:10px 24px;border-radius:8px;font-size:14px;font-weight:600;width:100%;max-width:280px;cursor:pointer">✕ Close Receipt</button>
+      </div>
+    </div>
+  `;
+
+  document.body.appendChild(overlay);
+}
+window.receipt = receipt;
 
 function startExam(id){
   const e=db.exams.find(x=>x.id===id);
