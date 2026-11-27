@@ -113,12 +113,12 @@ class IgyrRequestHandler(SimpleHTTPRequestHandler):
         # Health & Turso Status
         if path in ("/api/health", "/api", "/api/index"):
             try:
-                # ping Turso
+                # ping database
                 res = turso_db.query("SELECT 1 as ping;")
                 self._send_json({
                     "status": "online",
-                    "database": "Turso (libsql)",
-                    "url": TURSO_DATABASE_URL,
+                    "database": "Local SQLite (Offline-ready)" if turso_db._USE_LOCAL_SQLITE else "Turso (libsql)",
+                    "url": "local_db.sqlite" if turso_db._USE_LOCAL_SQLITE else TURSO_DATABASE_URL,
                     "ping": res[0].get("ping") if res else 1
                 })
             except Exception as e:
@@ -482,47 +482,60 @@ class IgyrRequestHandler(SimpleHTTPRequestHandler):
             inst_id = params.get("id", [None])[0]
             if inst_id:
                 try:
-                    turso_db.execute("DELETE FROM institutes WHERE id = ?;", [inst_id])
-                    turso_db.execute("DELETE FROM users WHERE inst = ? OR id = ?;", [inst_id, inst_id])
-                    turso_db.execute("DELETE FROM students WHERE inst = ?;", [inst_id])
-                    turso_db.execute("DELETE FROM classes WHERE inst = ?;", [inst_id])
-                    turso_db.execute("DELETE FROM subjects WHERE inst = ?;", [inst_id])
-                    self._send_json({"ok": True, "message": f"Institute {inst_id} deleted"})
+                    turso_db.delete_institute_completely(inst_id)
+                    self._send_json({"ok": True, "message": f"Institute {inst_id} and all its data wiped completely."})
                     return
                 except Exception as e:
                     self._send_json({"ok": False, "error": str(e)}, status=HTTPStatus.INTERNAL_SERVER_ERROR)
                     return
 
-        # Delete Announcement
-        if path == "/api/announcements":
-            ann_id = params.get("id", [None])[0]
+        # Delete Subject
+        if path == "/api/subjects":
             inst = params.get("inst", [None])[0]
-            text = params.get("text", [None])[0]
-            try:
-                turso_db.delete_announcement(ann_id=ann_id, inst=inst, text=text)
-                self._send_json({"ok": True, "message": "Announcement deleted successfully."})
-                return
-            except Exception as e:
-                self._send_json({"ok": False, "error": str(e)}, status=HTTPStatus.INTERNAL_SERVER_ERROR)
-                return
+            name = params.get("name", [None])[0]
+            cls = params.get("cls", [None])[0]
+            if inst and name:
+                try:
+                    turso_db.delete_subject(inst=inst, name=name, cls=cls)
+                    self._send_json({"ok": True, "message": f"Subject '{name}' deleted successfully."})
+                    return
+                except Exception as e:
+                    self._send_json({"ok": False, "error": str(e)}, status=HTTPStatus.INTERNAL_SERVER_ERROR)
+                    return
+
+        # Delete Class
+        if path == "/api/classes":
+            inst = params.get("inst", [None])[0]
+            name = params.get("name", [None])[0]
+            if inst and name:
+                try:
+                    turso_db.delete_class(inst=inst, name=name)
+                    self._send_json({"ok": True, "message": f"Class '{name}' deleted successfully."})
+                    return
+                except Exception as e:
+                    self._send_json({"ok": False, "error": str(e)}, status=HTTPStatus.INTERNAL_SERVER_ERROR)
+                    return
 
         self._send_json({"ok": False, "error": "Not found"}, status=HTTPStatus.NOT_FOUND)
 
 def run():
     # Ensure database schema is initialized on startup
-    print("Connecting to Turso Database...")
-    print(f"Turso URL: {TURSO_DATABASE_URL}")
+    print("Connecting to Database...")
     try:
         turso_db.init_db()
-        print("✓ Connected to Turso cloud successfully & verified database tables!")
+        if turso_db._USE_LOCAL_SQLITE:
+            print("✓ Local SQLite embedded database engine active (localhost offline-ready mode).")
+        else:
+            print("✓ Connected to Turso cloud successfully & verified database tables!")
     except Exception as e:
-        print(f"Warning: Turso initialization error: {e}")
+        print(f"Database initialization notice: {e}")
 
     server_address = (HOST, PORT)
     httpd = ThreadingHTTPServer(server_address, IgyrRequestHandler)
     print(f"============================================================")
     print(f"🚀 IGYR Python Backend Server running at http://localhost:{PORT}")
-    print(f"🔗 Connected to Turso cloud: {TURSO_DATABASE_URL}")
+    active_engine = "Local SQLite (Offline-ready)" if turso_db._USE_LOCAL_SQLITE else f"Turso Cloud ({TURSO_DATABASE_URL})"
+    print(f"🔗 Database Engine: {active_engine}")
     print(f"============================================================")
     try:
         httpd.serve_forever()
