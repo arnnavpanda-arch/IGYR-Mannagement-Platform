@@ -1155,40 +1155,93 @@ function renderStudentLedgerTable(s){
   });
 
   return `
-    <div class="mobile-table-hint">👉 Swipe table left & right to view all months and dues</div>
-    <div class="dues-table-wrap">
-      <table class="dues-table">
-        <thead>
-          <tr>
-            <th>Date</th>
-            <th>Due Month</th>
-            <th>Due Year</th>
-            <th>Debit Amount</th>
-            <th>Credit Amount</th>
-            <th>Due Amount</th>
-          </tr>
-        </thead>
-        <tbody>
-          ${ledger.length ? ledger.map(r => `
+    <div class="dues-desktop-table">
+      <div class="mobile-table-hint">👉 Swipe table left & right to view all months and dues</div>
+      <div class="dues-table-wrap">
+        <table class="dues-table">
+          <thead>
             <tr>
-              <td>${esc(r.date)}</td>
-              <td><b>${esc(r.month)}</b></td>
-              <td>${esc(r.year)}</td>
-              <td><b>₹${r.debit}</b></td>
-              <td><span class="paid-val">₹${r.credit}</span></td>
-              <td><span class="${+r.due > 0 ? 'due-val' : 'paid-val'}">₹${r.due}</span></td>
+              <th>Date</th>
+              <th>Due Month</th>
+              <th>Due Year</th>
+              <th>Debit Amount</th>
+              <th>Credit Amount</th>
+              <th>Due Amount</th>
             </tr>
-          `).join('') : `<tr><td colspan="6" style="padding:28px;text-align:center;color:#64748b;font-size:14px">ℹ️ No monthly dues added yet for this student. Use "Add Due Month" above or "Apply Monthly Fee Bill" to schedule dues.</td></tr>`}
-        </tbody>
-        <tfoot>
-          <tr style="background:#3d688c;color:#ffffff;font-weight:700">
-            <td colspan="3" style="text-align:right;padding:10px 14px;border:1px solid #3d688c;color:#ffffff">Total Summary:</td>
-            <td style="padding:10px 14px;border:1px solid #3d688c;color:#ffffff">₹${totalDebit.toFixed(2)}</td>
-            <td style="padding:10px 14px;border:1px solid #3d688c;color:#a7f3d0">₹${totalCredit.toFixed(2)}</td>
-            <td style="padding:10px 14px;border:1px solid #3d688c;color:${totalDue > 0 ? '#fecaca' : '#a7f3d0'}">₹${totalDue.toFixed(2)}</td>
-          </tr>
-        </tfoot>
-      </table>
+          </thead>
+          <tbody>
+            ${ledger.length ? ledger.map(r => `
+              <tr>
+                <td>${esc(r.date)}</td>
+                <td><b>${esc(r.month)}</b></td>
+                <td>${esc(r.year)}</td>
+                <td><b>₹${r.debit}</b></td>
+                <td><span class="paid-val">₹${r.credit}</span></td>
+                <td><span class="${+r.due > 0 ? 'due-val' : 'paid-val'}">₹${r.due}</span></td>
+              </tr>
+            `).join('') : `<tr><td colspan="6" style="padding:28px;text-align:center;color:#64748b;font-size:14px">ℹ️ No monthly dues added yet for this student. Use "Add Due Month" above or "Apply Monthly Fee Bill" to schedule dues.</td></tr>`}
+          </tbody>
+          <tfoot>
+            <tr style="background:#3d688c;color:#ffffff;font-weight:700">
+              <td colspan="3" style="text-align:right;padding:10px 14px;border:1px solid #3d688c;color:#ffffff">Total Summary:</td>
+              <td style="padding:10px 14px;border:1px solid #3d688c;color:#ffffff">₹${totalDebit.toFixed(2)}</td>
+              <td style="padding:10px 14px;border:1px solid #3d688c;color:#a7f3d0">₹${totalCredit.toFixed(2)}</td>
+              <td style="padding:10px 14px;border:1px solid #3d688c;color:${totalDue > 0 ? '#fecaca' : '#a7f3d0'}">₹${totalDue.toFixed(2)}</td>
+            </tr>
+          </tfoot>
+        </table>
+      </div>
+    </div>
+
+    <div class="dues-mobile-cards">
+      ${ledger.length ? ledger.map(r => {
+        const isDue = +r.due > 0;
+        return `
+          <div class="mobile-due-card ${isDue ? 'has-due' : 'cleared'}">
+            <div class="mobile-due-header">
+              <div>
+                <div class="mobile-due-month">📅 ${esc(r.month)} ${esc(r.year)}</div>
+                <div style="font-size:11px;color:#64748b;margin-top:2px">Billed on: ${esc(r.date || '-')}</div>
+              </div>
+              <span class="pill ${isDue ? 'due' : 'ok'}" style="font-size:11px;padding:3px 8px">${isDue ? 'Due ₹' + r.due : '✓ Paid'}</span>
+            </div>
+            <div class="mobile-due-grid">
+              <div class="mobile-due-col">
+                <div class="due-sublabel">Billed</div>
+                <div class="due-subval">₹${r.debit}</div>
+              </div>
+              <div class="mobile-due-col">
+                <div class="due-sublabel">Paid</div>
+                <div class="due-subval" style="color:#16a34a">₹${r.credit}</div>
+              </div>
+              <div class="mobile-due-col">
+                <div class="due-sublabel">Pending</div>
+                <div class="due-subval" style="color:${isDue ? '#dc2626' : '#16a34a'}">₹${r.due}</div>
+              </div>
+            </div>
+          </div>
+        `;
+      }).join('') : `<div style="padding:20px;text-align:center;color:#64748b;background:#f8fafc;border-radius:10px;font-size:13px">ℹ️ No monthly dues added yet for this student.</div>`}
+
+      ${ledger.length ? `
+        <div class="mobile-due-summary-card">
+          <div style="font-weight:700;font-size:13px;color:#334155;margin-bottom:8px;text-align:center">📊 Dues Summary</div>
+          <div class="mobile-due-grid">
+            <div class="mobile-due-col" style="background:#ffffff">
+              <div class="due-sublabel">Total Billed</div>
+              <div class="due-subval">₹${totalDebit.toFixed(2)}</div>
+            </div>
+            <div class="mobile-due-col" style="background:#ffffff">
+              <div class="due-sublabel">Total Paid</div>
+              <div class="due-subval" style="color:#16a34a">₹${totalCredit.toFixed(2)}</div>
+            </div>
+            <div class="mobile-due-col" style="background:#ffffff">
+              <div class="due-sublabel">Total Due</div>
+              <div class="due-subval" style="color:${totalDue > 0 ? '#dc2626' : '#16a34a'}">₹${totalDue.toFixed(2)}</div>
+            </div>
+          </div>
+        </div>
+      ` : ''}
     </div>
   `;
 }
@@ -1800,13 +1853,47 @@ student:{
    <div class="card-header" style="margin-top:24px">
      <h4 style="margin:0;font-size:16px;color:#1e3a8a">💳 Payment Receipts History</h4>
    </div>
-   <div class="mobile-table-hint">👉 Swipe table left & right to view payment receipts</div>
-   ${tbl(['Receipt No','Payment Date','Amount Paid','Official Receipt'],((db&&db.pays)?db.pays:[]).filter(p=>p.uid===(U&&U.id)).slice().reverse().map(p=>[
-     `<b style="font-family:monospace;color:#1e3a8a;font-size:13px">${esc(p.id)}</b>`,
-     esc(p.date),
-     `<b style="color:#059669;font-size:14px">₹${p.amt}</b>`,
-     `<button type="button" class="secondary" onclick='receipt("${esc(p.id)}")' style="padding:6px 12px;font-size:12px;white-space:nowrap;display:inline-flex;align-items:center;gap:4px">🧾 View Receipt</button>`
-   ]), 'receipts-main-table')}
+    <div class="receipts-desktop-wrap">
+      <div class="mobile-table-hint">👉 Swipe table left & right to view payment receipts</div>
+      ${tbl(['Receipt No','Payment Date','Amount Paid','Official Receipt'],((db&&db.pays)?db.pays:[]).filter(p=>p.uid===(U&&U.id)).slice().reverse().map(p=>[
+        `<b style="font-family:monospace;color:#1e3a8a;font-size:13px">${esc(p.id)}</b>`,
+        esc(p.date),
+        `<b style="color:#059669;font-size:14px">₹${p.amt}</b>`,
+        `<button type="button" class="secondary" onclick='receipt("${esc(p.id)}")' style="padding:6px 12px;font-size:12px;white-space:nowrap;display:inline-flex;align-items:center;gap:4px">🧾 View Receipt</button>`
+      ]), 'receipts-main-table')}
+    </div>
+    <div class="receipts-mobile-cards">
+      ${(() => {
+        const studentPays = ((db && db.pays) ? db.pays : []).filter(p => p.uid === (U && U.id)).slice().reverse();
+        if(!studentPays.length) {
+          return `<div style="padding:20px;text-align:center;color:#64748b;background:#f8fafc;border-radius:10px;font-size:13px">No payment receipts available yet.</div>`;
+        }
+        return studentPays.map(p => `
+          <div class="mobile-receipt-card">
+            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
+              <div>
+                <span style="font-size:11px;font-weight:700;color:#64748b;text-transform:uppercase">Receipt No</span>
+                <div style="font-family:monospace;font-weight:700;color:#1e3a8a;font-size:13.5px">${esc(p.id)}</div>
+              </div>
+              <span class="pill ok" style="font-size:11px;padding:3px 8px">Paid</span>
+            </div>
+            <div style="display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-top:1px dashed #e2e8f0;border-bottom:1px dashed #e2e8f0;margin-bottom:10px">
+              <div>
+                <div style="font-size:11px;color:#64748b">Payment Date</div>
+                <div style="font-weight:600;font-size:13px;color:#1e293b">${esc(p.date || '-')}</div>
+              </div>
+              <div style="text-align:right">
+                <div style="font-size:11px;color:#64748b">Amount Paid</div>
+                <div style="font-weight:800;font-size:16px;color:#059669">₹${p.amt}</div>
+              </div>
+            </div>
+            <button type="button" class="primary" onclick='receipt("${esc(p.id)}")' style="width:100%;padding:9px;font-size:13px;font-weight:600;display:flex;align-items:center;justify-content:center;gap:6px;border-radius:8px">
+              🖨️ View & Download A4 Receipt
+            </button>
+          </div>
+        `).join('');
+      })()}
+    </div>
   </div>`},
 
  'Attendance':()=>{
