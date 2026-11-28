@@ -18,8 +18,8 @@ A modern, high-performance web platform for Educational Institutes, Teachers, an
 The project is configured via `.env` and `config.py` with your Turso credentials:
 
 ```ini
-TURSO_DATABASE_URL=libsql://igyr-samrt-paltform-igyr.aws-ap-south-1.turso.io
-TURSO_AUTH_TOKEN=eyJhbGciOiJFZERTQSIsInR5cCI6IkpXVCJ9.eyJhIjoicnciLCJpYXQiOjE3OTU2NjM3ODYsImlkIjoiMDFhMjE1ZTQtMjUwMS03ODBiLWEwMGEtNDM5MmZmZGMyNDliIiwia2lkIjoiTWdWa3Uyc25IMG9FZjdYa1NlNkhYVDNpMnhpRU92U0JLc01odXZHQy1KQSIsInJpZCI6ImI2NTQyY2M2LTcwMDItNDBlYS1hZWIyLWMzN2NiNmNjMGYxNiJ9.xLWr0cfU1rPzNyv3n2ITME2gTZtuubrH4UJm4aoZHSq6ZdQxAt_9bgh3MywqqzB7uL8ho_-9NKpOL9ypcE0gAQ
+TURSO_DATABASE_URL=libsql://your-database-name.aws-ap-south-1.turso.io
+TURSO_AUTH_TOKEN=your_turso_auth_token_here
 PORT=5500
 HOST=0.0.0.0
 ```
